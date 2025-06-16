@@ -76,7 +76,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile("TEXTS.FIL", output, 0644); err != nil {
+	if err := os.WriteFile("TEXTS_NEW.FIL", output, 0644); err != nil {
 		panic(err)
 	}
 }
