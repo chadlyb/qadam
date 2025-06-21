@@ -33,9 +33,17 @@ import (
 	"unicode"
 )
 
-const charsetStartingAt0x20 = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~ ÇüéâäůćçłëŐőîŹÄĆÉĹĺôöĽľŚśÖÜŤťŁ×čáíóúĄąŽžĘę¬źČş«»░▒▓│┤ÁÂĚŞ╣║╗╝Żż┐└┴┬├─┼Ăă╚╔╩╦╠═╬¤đĐĎËďŇÍÎě┘┌█▄ŢŮ▀ÓßÔŃńňŠšŔÚŕŰýÝţ´-˝˛ˇ˘§÷¸°¨˙űŘř■ "
+// ISO CP 852
+// We use unicode 2400 "symbol for NUL" for NUL (0), so it is printable
+// We use unicode 2423 "Open Box" for NBSP (255), so it is printable
+// We use unicode 00A5 "Yen" aka the paragraph sign for the section symbol (u00A7), so there aren't two.
+// We use unicode 00AF "Macron" for the soft hyphen, so there aren't two.
+const ctrlCharacters = "\u2400\u263a\u263b\u2665\u2666\u2663\u2660\u2022\u25D8\u25CB\u25D9\u2642\u2640\u266A\u266B\u263C\u25BA\u25C4\u2195\u203C\u00B6\u00A5\u25AC\u21A8\u2191\u2193\u2192\u2190\u221F\u2194\u25B2\u25BC"
+const charsetString = ctrlCharacters + " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~⌂ÇüéâäůćçłëŐőîŹÄĆÉĹĺôöĽľŚśÖÜŤťŁ×čáíóúĄąŽžĘę¬źČş«»░▒▓│┤ÁÂĚŞ╣║╗╝Żż┐└┴┬├─┼Ăă╚╔╩╦╠═╬¤đĐĎËďŇÍÎě┘┌█▄ŢŮ▀ÓßÔŃńňŠšŔÚŕŰýÝţ´\u00AF˝˛ˇ˘§÷¸°¨˙űŘř■\u2423"
 
-var charsetRunes = []rune(charsetStartingAt0x20)
+//const charsetStartingAt0x20 = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~ ÇüéâäůćçłëŐőîŹÄĆÉĹĺôöĽľŚśÖÜŤťŁ×čáíóúĄąŽžĘę¬źČş«»░▒▓│┤ÁÂĚŞ╣║╗╝Żż┐└┴┬├─┼Ăă╚╔╩╦╠═╬¤đĐĎËďŇÍÎě┘┌█▄ŢŮ▀ÓßÔŃńňŠšŔÚŕŰýÝţ´-˝˛ˇ˘§÷¸°¨˙űŘř■ "
+
+var charsetRunes = []rune(charsetString)
 
 var charset = map[rune]byte{}
 
@@ -47,25 +55,31 @@ type Section struct {
 func main() {
 	for k, v := range charsetRunes {
 		_, has := charset[v]
+		if has {
+			fmt.Printf("%c redundant (%x vs %x)\n", v, k, charset[v])
+
+		}
 		if !has {
-			charset[v] = byte(k) + 0x20
+			charset[v] = byte(k)
 		}
 	}
 
-	charset[' '] = ' '
+	//charset[' '] = ' '
+	charset['\r'] = '\r'
 	charset['\n'] = '\n'
 	charset['\t'] = '\t'
 	// Unicode madness
 	charset['–'] = charset['-']
+	charset['—'] = charset['-']
 	charset['‘'] = charset['\'']
 	charset['’'] = charset['\'']
-	charset['—'] = charset['—']
 
-	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <inputfile>\n", os.Args[0])
+	if len(os.Args) != 3 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <inputfile> <outputfile>\n", os.Args[0])
 		os.Exit(1)
 	}
 	infile := os.Args[1]
+	outfile := os.Args[2]
 	f, err := os.Open(infile)
 	if err != nil {
 		panic(err)
@@ -76,9 +90,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile("TEXTS_NEW.FIL", output, 0644); err != nil {
+	if err := os.WriteFile(outfile, output, 0644); err != nil {
 		panic(err)
 	}
+	fmt.Printf("Wrote %d bytes to %s\n", len(output), outfile)
 }
 
 // The main parsing and file format logic
@@ -174,6 +189,16 @@ func processFile(r io.Reader) ([]byte, error) {
 					outData = append(outData, enc+key)
 				}
 				outData = append(outData, 0) // NUL-terminate
+				i++
+			case token == "NO_NUL":
+				// "NO_NUL" token to scrub last string terminator
+				if len(outData) == 0 {
+					return nil, fmt.Errorf("Line: %d: Encountered NO_NUL without any output so far!", lineNum)
+				}
+				if outData[len(outData)-1] != 0 {
+					return nil, fmt.Errorf("Line: %d: Encountered NO_NUL but previous character wasn't a NUL!", lineNum)
+				}
+				outData = outData[:len(outData)-1]
 				i++
 			default:
 				// Ignore
@@ -280,6 +305,8 @@ func unescapeString(s string) (string, error) {
 				out.WriteByte('\n')
 			case 't':
 				out.WriteByte('\t')
+			case 'r':
+				out.WriteByte('\r')
 			case '\\':
 				out.WriteByte('\\')
 			case '"':

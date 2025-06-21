@@ -1,23 +1,27 @@
 # qadam
 
-Tools to localize Mise Qadam.
+Tools to localize Mise Quadam.
 
 First, run `qdecomp.go` on the `TEXTS.FIL`:
 
-`go run qdecomp.go > qadam.txt`
+`go run qdecomp.go src/TEXTS.FIL > quadam_texts.txt`
 
 Then, edit the text file to localize (you can use `;` to comment out old text if you wish to keep it around.) `\n` is a newline character.
 
-Then, run `qcompile.go` to write `TEXTS_NEW.FIL`:
+Then, run `qcompile.go` to write `TEXTS.FIL`:
 
-`go run qcompile.go qadam.txt`
+`go run qcompile.go quadam_texts.txt dest/TEXTS.FIL`
 
-If you didn't change `qadam.txt` this should be bytewise identical to the original file!
+If you didn't change `quadam_texts.txt` this should be bytewise identical to the original file!
 
-Copy this file atop the old `TEXTS.FIL` to use it.
+Do the same steps for `RESOURCE.FIL` (replacing "TEXTS" with "RESOURCE" in above instructions) to localize section 11 of that file, (containing inventory item description strings.)
+Note that there will be a lot of weird nonsense strings and such in the file in the other sections--leave them alone, and the file should compile back to identical data.
 
-Finally, if the size of `TEXTS.FIL` has changed, a particular value will need to be patched in the `GAME.EXE`
+`go run qdecomp.go src/RESOURCE.FIL > quadam_resource.txt`
 
-`go run fixgame.go <SIZE OF TEXTS.FIL>`
+`go run qcompile.go quadam_resource.txt dest/RESOURCE.FIL`
 
-This will generate `GAME2.EXE` (copy atop `GAME.EXE` to use) and you are good to go!
+Finally, if the size of `TEXTS.FIL` or `RESOURCE.FIL` has changed, the new size(s) will need to be patched in the `GAME.EXE`:
+
+`go run fixgame.go src/GAME.EXE dest/GAME.EXE <SIZE OF dest/TEXTS.FIL> <SIZE OF dest/RESOURCE.FIL>`
+
