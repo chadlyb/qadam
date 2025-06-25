@@ -23,8 +23,12 @@ func main() {
 		// Parse decimal input
 		val, err := strconv.ParseUint(os.Args[i+3], 10, 32)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid decimal uint32 value: %v\n", err)
-			os.Exit(1)
+                       fileInfo, err := os.Lstat(os.Args[i+3])
+                       if err != nil {
+                               fmt.Fprintf(os.Stderr, "Invalid decimal uint32 value and also not could not open as file that exists '%v': %v\n", os.Args[i+3], err)
+                               os.Exit(1)
+                       }
+                       val = uint64(fileInfo.Size())
 		}
 		patch_values[i] = uint32(val)
 	}
