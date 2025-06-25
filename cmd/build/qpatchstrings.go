@@ -17,7 +17,6 @@ var lineRegex = regexp.MustCompile(lineRegexSrc)
 
 func handleLine(data []byte, line string) error {
 	matches := lineRegex.FindStringSubmatch(line)
-	//fmt.Println(matches)
 	if len(matches) != 4 {
 		return fmt.Errorf("line didn't match expected format")
 	}

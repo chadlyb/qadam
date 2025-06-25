@@ -2,40 +2,33 @@
 
 Tools to localize Mise Quadam.
 
-First, run `qdecomp.go` on the `TEXTS.FIL`:
+To use, first build the exes (assuming you've installed Go from e.g., https://go.dev/doc/install)
+`go build ./cmd/build`
+`go build ./cmd/extract`
 
-`go run qdecomp.go src/TEXTS.FIL > quadam_texts.txt`
+Then you can run `extract` (or `extract.exe` in Windows) and pass it in a folder containing the original game as an argument
+(in Windows, you can do this easily by dragging the folder onto the `extract.exe`.)
 
-Then, edit the text file to localize (you can use `;` to comment out old text if you wish to keep it around.) `\n` is a newline character. You may increase or decrease the length of strings (as long as overall you still fit in memory.)
+This will create an `extracted` folder alongside the original folder. It will contain:
+ - `og` This subdirectory contains a copy of the original files
+ - `texts.txt` This is the main file to localize. 
+   - (you can use `;` to comment out old text if you wish to keep it around.)
+   - `\n` is a newline character. 
+   - You MAY increase or decrease the length of strings (as long as overall you still fit in memory.)
+   - Leave any strings you don't edit alone. 
+   - I believe the hex characters before the strings are an identifier, a color, a screen location, and 32 (or 1 for he first item in a group for some reason.) 
+ - `resource.txt` Similar to just above, but contains inventory item strings in section 11.
+   - Note that there will be a LOT of weird nonsense strings and such in the file in the other sections--*leave them alone*, and the file should compile back to identical data.
+ - `game_exe.txt` Contains strings from the EXE. 
+   - This is a bit different than the first two--you may (and probably should for your sanity) delete any strings in this file which aren't human readable before editing. 
+   - You should NOT get rid of any weird characters before the strings you edit, since those probably contain important non-string data. 
+   - Also, unlike the above two, you may NOT make these strings longer than the original (the builder will complain if you do.)
+ - `install_exe.txt` Similar to just above, but for the installer.
 
-Then, run `qcompile.go` to write `TEXTS.FIL`:
+Then, when you want to test your changes to the files in `extracted`, you can run `build` (or `build.exe` in windows) and pass it in the `extracted` folder as an argument (or, again, in Windows, you can drag the `extracted` folder onto `build.exe`.)
 
-`go run qcompile.go quadam_texts.txt dest/TEXTS.FIL`
+This will generate the patched copy of the game in `built`.
 
-If you didn't change `quadam_texts.txt` this should be bytewise identical to the original file!
+If you run `extract` and then `build` immediately, the output in the `built` folder should exactly match the original files.
 
-Do the same steps for `RESOURCE.FIL` (replacing "TEXTS" with "RESOURCE" in above instructions) to localize section 11 of that file, (containing inventory item description strings.)
-Note that there will be a lot of weird nonsense strings and such in the file in the other sections--leave them alone, and the file should compile back to identical data.
-
-`go run qdecomp.go src/RESOURCE.FIL > quadam_resource.txt`
-
-`go run qcompile.go quadam_resource.txt dest/RESOURCE.FIL`
-
-Finally, if the size of `TEXTS.FIL` or `RESOURCE.FIL` has changed, the new size(s) will need to be patched in the `GAME.EXE`:
-
-`go run fixgame.go src/GAME.EXE dest/GAME.EXE <SIZE OF dest/TEXTS.FIL> <SIZE OF dest/RESOURCE.FIL>`
-
-
-To patch strings in the EXE, first:
-
-`go run qgetstrings.go src/GAME.EXE > exe_strings.txt`
-
-Then, manually remove all the non-human-readable lines from `exe_strings.txt`.
-You can edit the text to localize BUT unlike the FIL files, each new string should be the same size or smaller than the original!
-(also if there are weird characters at the beginning of the string, keep them intact, since it's probably important stuff from before the actual string)
-
-Then:
-
-`go run qpatchstrings.go dest/GAME.EXE dest/GAME.EXE exe_strings.txt`
-
-To patch the strings (the above command will change `dest/GAME.EXE` in place, I'm assuming that is the output of `fixgame` above--NOTE that you will have to run `fixgame` and then also `qpatchstrings` on its output to get the final EXE, or the other way around.)
+Good luck!

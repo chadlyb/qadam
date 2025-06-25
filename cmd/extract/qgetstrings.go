@@ -18,6 +18,7 @@ func qgetStrings(srcPath string, destPath string) error {
 		return fmt.Errorf("failed to create file '%v': %w", destPath, err)
 	}
 	defer outStream.Close()
+
 	// Crawl for strings, output OFFSET LENGTH "<string>"
 
 	stringBegin := 0

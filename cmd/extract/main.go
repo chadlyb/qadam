@@ -42,7 +42,7 @@ func extract(srcPath string) error {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %v <directory>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %v <original source directory>\n", os.Args[0])
 		os.Exit(1)
 	}
 
