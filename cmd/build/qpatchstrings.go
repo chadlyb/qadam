@@ -6,6 +6,8 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+
+	"github.com/chadlyb/qadam/shared"
 )
 
 // BEGIN-END:"STRING" ; COMMENT
@@ -17,25 +19,25 @@ func handleLine(data []byte, line string) error {
 	matches := lineRegex.FindStringSubmatch(line)
 	//fmt.Println(matches)
 	if len(matches) != 4 {
-		return fmt.Errorf("Line didn't match expected format")
+		return fmt.Errorf("line didn't match expected format")
 	}
 
 	patchBegin, err := strconv.ParseUint(matches[1], 16, 64)
 	if err != nil {
-		return fmt.Errorf("Couldn't parse begin offset (%w)", err)
+		return fmt.Errorf("couldn't parse begin offset (%w)", err)
 	}
 	patchEnd, err := strconv.ParseUint(matches[2], 16, 64)
 	if err != nil {
-		return fmt.Errorf("Couldn't parse end offset (%w)", err)
+		return fmt.Errorf("couldn't parse end offset (%w)", err)
 	}
-	patchBytes, err := fromString(matches[3])
+	patchBytes, err := shared.FromString(matches[3])
 	if err != nil {
-		return fmt.Errorf("Couldn't translate string (%w)", err)
+		return fmt.Errorf("couldn't translate string (%w)", err)
 	}
 
 	len := uint64(len(patchBytes))
 	if len+1 > patchEnd-patchBegin {
-		return fmt.Errorf("Ignoring too-long string (%v > %v)", len+1, patchEnd-patchBegin)
+		return fmt.Errorf("ignoring too-long string (%v > %v)", len+1, patchEnd-patchBegin)
 	}
 
 	for i := uint64(0); i != len; i++ {
@@ -48,13 +50,13 @@ func handleLine(data []byte, line string) error {
 func qpatchStrings(srcPath string, destPath string, patchPath string) error {
 	data, err := os.ReadFile(srcPath)
 	if err != nil {
-		return fmt.Errorf("Error reading source file %s: %w", srcPath, err)
+		return fmt.Errorf("error reading source file %s: %w", srcPath, err)
 	}
 
 	// Parse patch path, line by line.
 	patchFile, err := os.Open(patchPath)
 	if err != nil {
-		return fmt.Errorf("Error opening patch file %s: %w", patchPath, err)
+		return fmt.Errorf("error opening patch file %s: %w", patchPath, err)
 	}
 	defer patchFile.Close()
 
@@ -66,12 +68,12 @@ func qpatchStrings(srcPath string, destPath string, patchPath string) error {
 		line := scanner.Text()
 		err := handleLine(data, line)
 		if err != nil {
-			fmt.Printf("Ignored line %v due to error: %v\n", lineNum, err)
+			fmt.Printf("Warning: Ignored '%v' line %v due to error: %v\n", patchPath, lineNum, err)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("Error while scanning patch file %s: %w", patchPath, err)
+		return fmt.Errorf("error while scanning patch file %s: %w", patchPath, err)
 	}
 
 	// Write to output file
@@ -81,14 +83,6 @@ func qpatchStrings(srcPath string, destPath string, patchPath string) error {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Patched %s -> %s", srcPath, destPath)
+	//fmt.Printf("Patched %s -> %s", srcPath, destPath)
 	return nil
-}
-
-func main() {
-	err := realMain()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v", err)
-		os.Exit(1)
-	}
 }

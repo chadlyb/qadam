@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	"github.com/chadlyb/qadam/shared"
 )
 
 func qdecomp(inputFile string, outputFile string) error {
 	data, err := ioutil.ReadFile(inputFile)
 	if err != nil {
-		return fmt.Errorf("Failed to read file '%v': %w\n", inputFile, err)
+		return fmt.Errorf("failed to read file '%v': %w", inputFile, err)
 	}
 
 	numEntries := int(data[0])
@@ -20,7 +22,7 @@ func qdecomp(inputFile string, outputFile string) error {
 
 	outStream, err := os.Create(outputFile)
 	if err != nil {
-		return fmt.Errorf("Failed to create file '%v': %w\n", outputFile, err)
+		return fmt.Errorf("failed to create file '%v': %w", outputFile, err)
 	}
 	defer outStream.Close()
 
@@ -73,7 +75,7 @@ func qdecomp(inputFile string, outputFile string) error {
 				case b == '"':
 					fmt.Fprintf(outStream, "\\\"")
 				default:
-					fmt.Fprintf(outStream, "%c", charsetRunes[b])
+					fmt.Fprintf(outStream, "%c", shared.CharsetRunes[b])
 				}
 				stringRun++
 			}
@@ -89,4 +91,5 @@ func qdecomp(inputFile string, outputFile string) error {
 	}
 
 	fmt.Fprintf(outStream, "\n")
+	return nil
 }

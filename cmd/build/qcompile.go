@@ -31,6 +31,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/chadlyb/qadam/shared"
 )
 
 type Section struct {
@@ -59,7 +61,7 @@ func processFile(r io.Reader) ([]byte, error) {
 		// Tokenize line (preserving quoted strings as single tokens)
 		tokens, err := tokenize(line)
 		if err != nil {
-			return nil, fmt.Errorf("Line %d: %v", lineNum, err)
+			return nil, fmt.Errorf("line %d: %v", lineNum, err)
 		}
 
 		i := 0
@@ -68,14 +70,14 @@ func processFile(r io.Reader) ([]byte, error) {
 			switch {
 			case strings.ToUpper(token) == "SECTION":
 				if i+1 >= len(tokens) {
-					return nil, fmt.Errorf("Line %d: SECTION missing argument", lineNum)
+					return nil, fmt.Errorf("line %d: SECTION missing argument", lineNum)
 				}
 				n, err := strconv.Atoi(tokens[i+1])
 				if err != nil {
-					return nil, fmt.Errorf("Line %d: Invalid SECTION number: %v", lineNum, err)
+					return nil, fmt.Errorf("line %d: Invalid SECTION number: %v", lineNum, err)
 				}
 				if n != expectedSection {
-					return nil, fmt.Errorf("Line %d: Out-of-order SECTION, expected %d got %d", lineNum, expectedSection, n)
+					return nil, fmt.Errorf("lIne %d: Out-of-order SECTION, expected %d got %d", lineNum, expectedSection, n)
 				}
 				sections = append(sections, Section{index: n, pos: len(outData)})
 				expectedSection++
@@ -88,7 +90,7 @@ func processFile(r io.Reader) ([]byte, error) {
 					for {
 						i++
 						if i >= len(tokens) {
-							return nil, fmt.Errorf("Line %d: Missing closing ] for hex block", lineNum)
+							return nil, fmt.Errorf("line %d: Missing closing ] for hex block", lineNum)
 						}
 						hexpart := tokens[i]
 						if strings.HasSuffix(hexpart, "]") {
@@ -101,7 +103,7 @@ func processFile(r io.Reader) ([]byte, error) {
 					// Now hexstr is all hex digits
 					bytes, err := hex.DecodeString(hexstr)
 					if err != nil {
-						return nil, fmt.Errorf("Line %d: Invalid hex: %v", lineNum, err)
+						return nil, fmt.Errorf("line %d: Invalid hex: %v", lineNum, err)
 					}
 					outData = append(outData, bytes...)
 					i++
@@ -110,7 +112,7 @@ func processFile(r io.Reader) ([]byte, error) {
 					hexstr := token[1 : len(token)-1]
 					bytes, err := hex.DecodeString(hexstr)
 					if err != nil {
-						return nil, fmt.Errorf("Line %d: Invalid hex: %v", lineNum, err)
+						return nil, fmt.Errorf("line %d: Invalid hex: %v", lineNum, err)
 					}
 					outData = append(outData, bytes...)
 					i++
@@ -119,14 +121,14 @@ func processFile(r io.Reader) ([]byte, error) {
 				// Quoted string
 				s, err := parseStringToken(token, tokens, &i)
 				if err != nil {
-					return nil, fmt.Errorf("Line %d: %v", lineNum, err)
+					return nil, fmt.Errorf("line %d: %v", lineNum, err)
 				}
 				const key = 0x31
 				// Charset lookup and obfuscation
 				for _, ch := range s {
-					enc, ok := charset[ch]
+					enc, ok := shared.CharsetMapToByte[ch]
 					if !ok {
-						return nil, fmt.Errorf("Line %d: Character %q missing from charset", lineNum, ch)
+						return nil, fmt.Errorf("line %d: Character %q missing from charset", lineNum, ch)
 					}
 					outData = append(outData, enc+key)
 				}
@@ -135,16 +137,16 @@ func processFile(r io.Reader) ([]byte, error) {
 			case token == "NO_NUL":
 				// "NO_NUL" token to scrub last string terminator
 				if len(outData) == 0 {
-					return nil, fmt.Errorf("Line: %d: Encountered NO_NUL without any output so far!", lineNum)
+					return nil, fmt.Errorf("line: %d: Encountered NO_NUL without any output so far", lineNum)
 				}
 				if outData[len(outData)-1] != 0 {
-					return nil, fmt.Errorf("Line: %d: Encountered NO_NUL but previous character wasn't a NUL!", lineNum)
+					return nil, fmt.Errorf("line: %d: Encountered NO_NUL but previous character wasn't a NUL", lineNum)
 				}
 				outData = outData[:len(outData)-1]
 				i++
 			default:
 				// Ignore
-				return nil, fmt.Errorf("Line %d: Unrecognized token '%v'", lineNum, token)
+				return nil, fmt.Errorf("line %d: Unrecognized token '%v'", lineNum, token)
 			}
 		}
 	}
@@ -154,7 +156,7 @@ func processFile(r io.Reader) ([]byte, error) {
 	// Write out file format
 	numSections := len(sections)
 	if numSections == 0 {
-		return nil, errors.New("No sections found")
+		return nil, errors.New("no sections found")
 	}
 	var dir []byte
 	dirSize := 1 + 3*numSections + 3 // num, offsets, filesize
@@ -210,7 +212,7 @@ func tokenize(s string) ([]string, error) {
 	}
 	if sb.Len() > 0 {
 		if inQuote {
-			return nil, errors.New("Unterminated quoted string")
+			return nil, errors.New("unterminated quoted string")
 		}
 		tokens = append(tokens, sb.String())
 	}
@@ -224,13 +226,13 @@ func parseStringToken(token string, tokens []string, i *int) (string, error) {
 	for !strings.HasSuffix(s, "\"") {
 		*i++
 		if *i >= len(tokens) {
-			return "", errors.New("Unterminated quoted string")
+			return "", errors.New("unterminated quoted string")
 		}
 		s += " " + tokens[*i]
 	}
 	s = s[:len(s)-1] // remove ending "
 	// Now unescape
-	return unescapeString(s)
+	return shared.UnescapeString(s)
 }
 
 func qcompile(infile string, outfile string) error {
@@ -241,7 +243,7 @@ func qcompile(infile string, outfile string) error {
 	defer f.Close()
 	output, err := processFile(f)
 	if err != nil {
-		return fmt.Errorf("qcompile processFile error: %v\n", err)
+		return fmt.Errorf("qcompile processFile error: %v", err)
 	}
 	if err := os.WriteFile(outfile, output, 0644); err != nil {
 		return fmt.Errorf("qcompile error writing '%v': %w", outfile, err)
