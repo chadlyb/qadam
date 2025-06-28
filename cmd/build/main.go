@@ -14,7 +14,7 @@ func build(srcPath string) error {
 
 	err := shared.CopyCleanDir(srcOgPath, destPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to copy clean directory: %w", err)
 	}
 
 	textsFil := filepath.Join(destPath, "TEXTS.FIL")
@@ -23,27 +23,27 @@ func build(srcPath string) error {
 
 	err = qcompile(filepath.Join(srcPath, "texts.txt"), textsFil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to compile texts.txt: %w", err)
 	}
 
 	err = qcompile(filepath.Join(srcPath, "resource.txt"), resourceFil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to compile resource.txt: %w", err)
 	}
 
 	err = qpatchStrings(filepath.Join(srcOgPath, "GAME.EXE"), gameExe, filepath.Join(srcPath, "game_exe.txt"))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to patch strings in GAME.EXE: %w", err)
 	}
 
 	err = qpatchStrings(filepath.Join(srcOgPath, "INSTALL.EXE"), filepath.Join(destPath, "INSTALL.EXE"), filepath.Join(srcPath, "install_exe.txt"))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to patch strings in INSTALL.EXE: %w", err)
 	}
 
 	err = fixgame(gameExe, gameExe, textsFil, resourceFil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to fix game executable: %w", err)
 	}
 
 	return nil
@@ -58,7 +58,7 @@ func main() {
 	err := build(os.Args[1])
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

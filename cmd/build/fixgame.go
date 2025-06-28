@@ -6,20 +6,21 @@ import (
 	"os"
 )
 
-func fixgame(srcPath string, destPath string, srcPaths ...string) error {
-	patch_locs := []int{0x0001A706, 0x0001A6E6}
+// fixgame patches the expected size of two files in the game executable to the size of the files in the source directory
+func fixgame(srcPath string, destPath string, filesToGetLengthFrom ...string) error {
+	patchOffsets := []int{0x0001A706, 0x0001A6E6} // These correspond to the offsets of the expected sizes of TEXTS.FIL and RESOURCE.FIL in the game executable
 
-	if len(srcPaths) != len(patch_locs) {
-		return fmt.Errorf("wrong number of source paths, expecting %v got %v", len(patch_locs), len(srcPaths))
+	if len(filesToGetLengthFrom) != len(patchOffsets) {
+		return fmt.Errorf("wrong number of source paths, expecting %v got %v", len(patchOffsets), len(filesToGetLengthFrom))
 	}
 
-	patch_values := make([]uint32, len(patch_locs))
-	for i := 0; i != len(patch_locs); i++ {
-		fileInfo, err := os.Lstat(srcPaths[i])
+	patchValues := make([]uint32, len(patchOffsets))
+	for i := 0; i != len(patchOffsets); i++ {
+		fileInfo, err := os.Lstat(filesToGetLengthFrom[i])
 		if err != nil {
-			return fmt.Errorf("fixgame could not get size of file '%v': %w", srcPaths[i], err)
+			return fmt.Errorf("fixgame could not get size of file '%v': %w", filesToGetLengthFrom[i], err)
 		}
-		patch_values[i] = uint32(fileInfo.Size())
+		patchValues[i] = uint32(fileInfo.Size())
 	}
 
 	// Read input file
@@ -28,14 +29,14 @@ func fixgame(srcPath string, destPath string, srcPaths ...string) error {
 		return fmt.Errorf("error reading %s: %w", srcPath, err)
 	}
 
-	for i := 0; i != len(patch_locs); i++ {
+	for i := 0; i != len(patchOffsets); i++ {
 		// Check bounds
-		if patch_locs[i]+2 > len(data) {
-			return fmt.Errorf("error: offset 0x%X out of bounds for GAME.EXE (size %d bytes)", patch_locs[i], len(data))
+		if patchOffsets[i]+4 > len(data) {
+			return fmt.Errorf("error: offset 0x%X out of bounds for %v (size %d bytes)", patchOffsets[i], srcPath, len(data))
 		}
 
 		// Patch the value in-place
-		binary.LittleEndian.PutUint32(data[patch_locs[i]:], uint32(patch_values[i]))
+		binary.LittleEndian.PutUint32(data[patchOffsets[i]:], uint32(patchValues[i]))
 	}
 
 	// Write to output file

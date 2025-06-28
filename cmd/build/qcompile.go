@@ -77,7 +77,7 @@ func processFile(r io.Reader) ([]byte, error) {
 					return nil, fmt.Errorf("line %d: Invalid SECTION number: %v", lineNum, err)
 				}
 				if n != expectedSection {
-					return nil, fmt.Errorf("lIne %d: Out-of-order SECTION, expected %d got %d", lineNum, expectedSection, n)
+					return nil, fmt.Errorf("line %d: Out-of-order SECTION, expected %d got %d", lineNum, expectedSection, n)
 				}
 				sections = append(sections, Section{index: n, pos: len(outData)})
 				expectedSection++
@@ -137,10 +137,10 @@ func processFile(r io.Reader) ([]byte, error) {
 			case token == "NO_NUL":
 				// "NO_NUL" token to scrub last string terminator
 				if len(outData) == 0 {
-					return nil, fmt.Errorf("line: %d: Encountered NO_NUL without any output so far", lineNum)
+					return nil, fmt.Errorf("line %d: Encountered NO_NUL without any output so far", lineNum)
 				}
 				if outData[len(outData)-1] != 0 {
-					return nil, fmt.Errorf("line: %d: Encountered NO_NUL but previous character wasn't a NUL", lineNum)
+					return nil, fmt.Errorf("line %d: Encountered NO_NUL but previous character wasn't a NUL", lineNum)
 				}
 				outData = outData[:len(outData)-1]
 				i++

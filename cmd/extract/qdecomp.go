@@ -2,22 +2,36 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/chadlyb/qadam/shared"
 )
 
+func readInt24(data []byte, offset int) int32 {
+	return int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
+}
+
 func qdecomp(inputFile string, outputFile string) error {
-	data, err := ioutil.ReadFile(inputFile)
+	data, err := os.ReadFile(inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to read file '%v': %w", inputFile, err)
 	}
 
+	if len(data) < 1 {
+		return fmt.Errorf("file %v is empty", inputFile)
+	}
+
 	numEntries := int(data[0])
+	if numEntries < 0 || numEntries > 1000 {
+		return fmt.Errorf("invalid number of entries: %v", numEntries)
+	}
+
 	offsets := make([]int, numEntries+1)
 	for i := 0; i != numEntries+1; i++ {
-		offsets[i] = int(data[1+i*3+2])<<16 + int(data[1+i*3+1])<<8 + int(data[1+i*3+0])
+		offsets[i] = int(readInt24(data, 1+i*3))
+		if offsets[i] < 0 || offsets[i] > len(data) {
+			return fmt.Errorf("offset %v is out of bounds for file %v", offsets[i], inputFile)
+		}
 	}
 
 	outStream, err := os.Create(outputFile)
@@ -26,7 +40,9 @@ func qdecomp(inputFile string, outputFile string) error {
 	}
 	defer outStream.Close()
 
-	// Todo: Validate offsets[numEntries] == len(data)
+	if offsets[numEntries] != len(data) {
+		return fmt.Errorf("last offset %v does not match file size %v", offsets[numEntries], len(data))
+	}
 
 	hexRun := 0
 	stringRun := 0

@@ -14,27 +14,27 @@ func extract(srcPath string) error {
 
 	err := shared.CopyCleanDir(srcPath, destOgPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't copy clean directory: %w", err)
 	}
 
 	err = qdecomp(filepath.Join(srcPath, "TEXTS.FIL"), filepath.Join(destPath, "texts.txt"))
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't decompile TEXTS.FIL: %w", err)
 	}
 
 	err = qdecomp(filepath.Join(srcPath, "RESOURCE.FIL"), filepath.Join(destPath, "resource.txt"))
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't decompile RESOURCE.FIL: %w", err)
 	}
 
 	err = qgetStrings(filepath.Join(srcPath, "GAME.EXE"), filepath.Join(destPath, "game_exe.txt"))
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't get strings from GAME.EXE: %w", err)
 	}
 
 	err = qgetStrings(filepath.Join(srcPath, "INSTALL.EXE"), filepath.Join(destPath, "install_exe.txt"))
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't get strings from INSTALL.EXE: %w", err)
 	}
 
 	return nil
@@ -49,7 +49,7 @@ func main() {
 	err := extract(os.Args[1])
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
