@@ -1,12 +1,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/chadlyb/qadam/shared"
 )
+
+// Version will be set by the linker during build
+var version = "dev"
 
 func build(srcPath string) error {
 	srcOgPath := filepath.Join(srcPath, "og")
@@ -50,8 +54,17 @@ func build(srcPath string) error {
 }
 
 func main() {
+	showVersion := flag.Bool("version", false, "Show version information")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("QADAM Build Tool v%s\n", version)
+		os.Exit(0)
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %v <extracted directory>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "       %v -version\n", os.Args[0])
 		os.Exit(1)
 	}
 

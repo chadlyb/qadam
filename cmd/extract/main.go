@@ -1,12 +1,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/chadlyb/qadam/shared"
 )
+
+// Version will be set by the linker during build
+var version = "dev"
 
 func extract(srcPath string) error {
 	destPath := filepath.Join(srcPath, "..", "extracted")
@@ -41,9 +45,25 @@ func extract(srcPath string) error {
 }
 
 func main() {
+	showVersion := flag.Bool("version", false, "Show version information")
+	debug := flag.Bool("debug", false, "Enable debug output")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("QADAM Extract Tool v%s\n", version)
+		os.Exit(0)
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %v <original source directory>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "       %v -version\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "       %v -debug <original source directory>\n", os.Args[0])
 		os.Exit(1)
+	}
+
+	// Set debug mode globally if requested
+	if *debug {
+		fmt.Println("DEBUG: Debug mode enabled")
 	}
 
 	err := extract(os.Args[1])

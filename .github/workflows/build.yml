@@ -1,25 +1,124 @@
-name: Go
-on: [push]
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  GO_VERSION: '1.23.x'
 
 jobs:
-  build:
+  test:
+    name: Test
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
-      - name: Build win64 extract
-        run: GOARCH=amd64 GOOS=windows go build -v ./cmd/extract
-      - name: Build win64 build
-        run: GOARCH=amd64 GOOS=windows go build -v ./cmd/build
-      - name: Upload win64 binary distro artifact
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run tests
+        run: go test -v ./...
+
+  build:
+    name: Build for ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+            goos: linux
+            goarch: amd64
+            ext: ""
+          - os: windows-latest
+            arch: amd64
+            goos: windows
+            goarch: amd64
+            ext: ".exe"
+          - os: macos-latest
+            arch: amd64
+            goos: darwin
+            goarch: amd64
+            ext: ""
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build extract tool
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
+            -ldflags="-s -w" \
+            -o extract${{ matrix.ext }} \
+            ./cmd/extract
+
+      - name: Build build tool
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
+            -ldflags="-s -w" \
+            -o build${{ matrix.ext }} \
+            ./cmd/build
+
+      - name: Create release directory
+        run: |
+          mkdir -p release
+          cp extract${{ matrix.ext }} release/
+          cp build${{ matrix.ext }} release/
+          cp README.md release/
+
+      - name: Create archive
+        run: |
+          cd release
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            7z a ../qadam-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
+          else
+            tar -czf ../qadam-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
+          fi
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: binary-win64
+          name: qadam-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
-            extract.exe
-            build.exe
-            README.md
+            qadam-${{ matrix.goos }}-${{ matrix.goarch }}.*
+          retention-days: 30
+
+  build-all:
+    name: Build All Platforms
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create combined release
+        run: |
+          mkdir -p combined-release
+          for artifact in artifacts/*/; do
+            if [ -d "$artifact" ]; then
+              platform=$(basename "$artifact")
+              echo "Processing $platform"
+              cp "$artifact"/* combined-release/
+            fi
+          done
+
+      - name: Upload combined artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qadam-all-platforms
+          path: combined-release/
+          retention-days: 90
