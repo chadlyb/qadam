@@ -1,34 +1,145 @@
-# qadam
+# QADAM - Mise Quadam Localization Tools
 
-Tools to localize Mise Quadam.
+Tools to extract, localize, and rebuild Mise Quadam game files. This project provides a complete workflow for translating the Czech game into other languages.
 
-To use, first build the exes (assuming you've installed Go from e.g., https://go.dev/doc/install)
-`go build ./cmd/build`
-`go build ./cmd/extract`
+## Building (if not using precompiled package)
 
-Then you can run `extract` (or `extract.exe` in Windows) and pass it in a folder containing the original game as an argument
-(in Windows, you can do this easily by dragging the folder onto the `extract.exe`.)
+### Prerequisites
 
-This will create an `extracted` folder alongside the original folder. It will contain:
- - `og` This subdirectory contains a copy of the original files
- - `texts.txt` This is the main file to localize. 
-   - (you can use `;` to comment out old text if you wish to keep it around.)
-   - `\n` is a newline character. 
-   - You MAY increase or decrease the length of strings (as long as overall you still fit in memory.)
-   - Leave any strings you don't edit alone. 
-   - I believe the hex characters before the strings are an identifier, a color, a screen location, and 32 (or 1 for he first item in a group for some reason.) 
- - `resource.txt` Similar to just above, but contains inventory item strings in section 11.
-   - Note that there will be a LOT of weird nonsense strings and such in the file in the other sections--*leave them alone*, and the file should compile back to identical data.
- - `game_exe.txt` Contains strings from the EXE. 
-   - This is a bit different than the first two--you may (and probably should for your sanity) delete any strings in this file which aren't human readable before editing. 
-   - You should NOT get rid of any weird characters before the strings you edit, since those probably contain important non-string data. 
-   - Also, unlike the above two, you may NOT make these strings longer than the original (the builder will complain if you do.)
- - `install_exe.txt` Similar to just above, but for the installer.
+- [Go](https://go.dev/doc/install) 1.19 or later
+- Make, if using make.
 
-Then, when you want to test your changes to the files in `extracted`, you can run `build` (or `build.exe` in windows) and pass it in the `extracted` folder as an argument (or, again, in Windows, you can drag the `extracted` folder onto `build.exe`.)
+### Building
 
-This will generate the patched copy of the game in `built`.
+The easiest way to build the tools is using the provided Makefile:
 
-If you run `extract` and then `build` immediately, the output in the `built` folder should exactly match the original files.
+```bash
+# Build for your current platform
+make build
 
-Good luck!
+# Build for all platforms (Windows, macOS, Linux)
+make build-all
+
+# Clean build artifacts
+make clean
+```
+
+Alternatively, you can build manually:
+
+```bash
+# Build extract tool
+go build -o extract ./cmd/extract
+
+# Build build tool  
+go build -o build ./cmd/build
+```
+
+## Usage
+
+1. **Extract strings from original game files:**
+   ```bash
+   ./extract <path-to-original-game-folder>
+   ```
+
+   - In Windows Explorer, this can be achieved by dragging the original game folder onto the extract EXE.
+
+   This creates an `extracted` folder containing:
+   - `og/` - Copy of original files
+   - `texts.txt` - Main game text (section 0)
+   - `resource.txt` - Inventory item strings (section 11)
+   - `game_exe.txt` - Strings from GAME.EXE
+   - `install_exe.txt` - Strings from INSTALL.EXE
+
+2. **Edit the extracted text files:**
+   - `texts.txt` - Main localization file
+     - Use `;` for comments
+     - `\n` for newlines
+     - You can change string lengths (within memory constraints)
+     - Leave unedited strings unchanged
+   - `resource.txt` - Inventory items
+     - Only edit section 11 strings
+     - Leave other sections unchanged
+   - `game_exe.txt` - Executable strings
+     - Delete lines containing non-human-readable strings for clarity--they will be unchanged if you do this.
+     - Don't modify "garbage characters" at beginning of strings! This is probably important non-string data.
+     - Don't make strings longer than original
+   - `install_exe.txt` - Installer strings
+     - Same rules as game_exe.txt
+
+3. **Build localized game:**
+   ```bash
+   ./build <path-to-extracted-folder>
+   ```
+
+   - In Windows, this can be achieved by dragging the (possibly edited) extracted folder onto the build EXE.
+
+   This creates a `built` folder with the localized game files.
+
+## File Format Details
+
+### texts.txt and resource.txt (from .FIL files)
+- Format: `[hex-data] "string content"`
+- Example: `[01 02 03 04 05] "Hello world"`
+- Hex data (probably?) contains: identifier, color, screen location, and flags
+- Use `;` for comments
+- This file is used to reconstruct the FIL file from scratch, so don't delete anything (other than editing inside strings)!
+
+### game_exe.txt and install_exe.txt (from executables)
+- Format: `<beginoffset>-<endoffset>:"string content"`
+- Example: `00001236-0000123f: "New Game"`
+- The string may begin with "garbage" characters -- **Leave these characters completely unchanged** - they contain important game data
+- Use ';' for comments
+- This is a patch file, so you can delete lines that you don't want to patch and the underlying EXE won't be changed.
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run tests with verbose output
+make test-verbose
+
+# Run specific test suites
+make test-language-model
+make test-extraction
+
+# Run tests with coverage
+make test-coverage
+```
+
+### Code Quality
+
+```bash
+# Format code
+make fmt
+
+# Run linter
+make lint
+
+# Run benchmarks
+make benchmark
+```
+
+### Creating Releases
+
+```bash
+# Create release packages for all platforms
+make release
+```
+
+This creates:
+- `qadam-<version>-windows-amd64.zip`
+- `qadam-<version>-linux-amd64.tar.gz`  
+- `qadam-<version>-darwin-amd64.tar.gz`
+
+### Debug Mode
+
+Enable verbose output for troubleshooting:
+
+```bash
+./extract -v <source-directory>
+```
+
