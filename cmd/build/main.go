@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"os"
@@ -12,6 +12,47 @@ import (
 
 // Version will be set by the linker during build
 var version = "dev"
+
+func patchFileSizes(gameExePath, textsFilPath, resourceFilPath string) error {
+	gameExeData, err := os.ReadFile(gameExePath)
+	if err != nil {
+		return fmt.Errorf("failed to read game executable: %w", err)
+	}
+
+	// Get file sizes for patching
+	textsInfo, err := os.Lstat(textsFilPath)
+	if err != nil {
+		return fmt.Errorf("failed to get TEXTS.FIL size: %w", err)
+	}
+	resourceInfo, err := os.Lstat(resourceFilPath)
+	if err != nil {
+		return fmt.Errorf("failed to get RESOURCE.FIL size: %w", err)
+	}
+
+	// Patch the file sizes directly in the buffer
+	const textsFilOffset = 0x0001A706
+	const resourceFilOffset = 0x0001A6E6
+
+	// Check bounds
+	if textsFilOffset+4 > len(gameExeData) {
+		return fmt.Errorf("TEXTS.FIL offset 0x%X out of bounds (size %d bytes)", textsFilOffset, len(gameExeData))
+	}
+	if resourceFilOffset+4 > len(gameExeData) {
+		return fmt.Errorf("RESOURCE.FIL offset 0x%X out of bounds (size %d bytes)", resourceFilOffset, len(gameExeData))
+	}
+
+	// Patch the values in-place
+	binary.LittleEndian.PutUint32(gameExeData[textsFilOffset:], uint32(textsInfo.Size()))
+	binary.LittleEndian.PutUint32(gameExeData[resourceFilOffset:], uint32(resourceInfo.Size()))
+
+	// Write the patched data back to the file
+	err = os.WriteFile(gameExePath, gameExeData, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write patched game executable: %w", err)
+	}
+
+	return nil
+}
 
 func build(srcPath string) error {
 	srcOgPath := filepath.Join(srcPath, "og")
@@ -47,41 +88,9 @@ func build(srcPath string) error {
 	}
 
 	// Patch the game executable to have correct file sizes
-
-	gameExeData, err := os.ReadFile(gameExe)
+	err = patchFileSizes(gameExe, textsFil, resourceFil)
 	if err != nil {
-		return fmt.Errorf("failed to read game executable: %w", err)
-	}
-
-	// Get file sizes for patching
-	textsInfo, err := os.Lstat(textsFil)
-	if err != nil {
-		return fmt.Errorf("failed to get TEXTS.FIL size: %w", err)
-	}
-	resourceInfo, err := os.Lstat(resourceFil)
-	if err != nil {
-		return fmt.Errorf("failed to get RESOURCE.FIL size: %w", err)
-	}
-
-	// Default patch offsets for TEXTS.FIL and RESOURCE.FIL
-	const textsFilOffset = 0x0001A706
-	const resourceFilOffset = 0x0001A6E6
-	patchOffsets := []int{textsFilOffset, resourceFilOffset}
-	fileSizes := []uint32{uint32(textsInfo.Size()), uint32(resourceInfo.Size())}
-
-	// Create a buffer for the patched data
-	var patchedData bytes.Buffer
-
-	// Patch the game executable in memory
-	err = fixgameFromReader(bytes.NewReader(gameExeData), &patchedData, fileSizes, patchOffsets)
-	if err != nil {
-		return fmt.Errorf("failed to fix game executable: %w", err)
-	}
-
-	// Write the patched data back to the file
-	err = os.WriteFile(gameExe, patchedData.Bytes(), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write patched game executable: %w", err)
+		return fmt.Errorf("failed to patch file sizes: %w", err)
 	}
 
 	return nil
