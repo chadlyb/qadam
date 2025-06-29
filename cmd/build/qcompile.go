@@ -235,19 +235,34 @@ func parseStringToken(token string, tokens []string, i *int) (string, error) {
 	return shared.UnescapeString(s)
 }
 
-func qcompile(infile string, outfile string) error {
-	f, err := os.Open(infile)
-	if err != nil {
-		return fmt.Errorf("qcompile error opening '%v': %w", infile, err)
-	}
-	defer f.Close()
-	output, err := processFile(f)
+func qcompileFromReader(reader io.Reader, writer io.Writer) error {
+	output, err := processFile(reader)
 	if err != nil {
 		return fmt.Errorf("qcompile processFile error: %v", err)
 	}
-	if err := os.WriteFile(outfile, output, 0644); err != nil {
-		return fmt.Errorf("qcompile error writing '%v': %w", outfile, err)
+
+	_, err = writer.Write(output)
+	if err != nil {
+		return fmt.Errorf("qcompile error writing: %w", err)
 	}
-	// fmt.Printf("Wrote %d bytes to %s\n", len(output), outfile)
+
 	return nil
+}
+
+func qcompile(infile string, outfile string) error {
+	// Open input file
+	input, err := os.Open(infile)
+	if err != nil {
+		return fmt.Errorf("qcompile error opening '%v': %w", infile, err)
+	}
+	defer input.Close()
+
+	// Create output file
+	output, err := os.Create(outfile)
+	if err != nil {
+		return fmt.Errorf("qcompile error creating '%v': %w", outfile, err)
+	}
+	defer output.Close()
+
+	return qcompileFromReader(input, output)
 }

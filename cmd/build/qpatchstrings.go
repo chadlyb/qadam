@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strconv"
@@ -51,20 +52,16 @@ func handleLine(data []byte, line string) error {
 	return nil
 }
 
-func qpatchStrings(srcPath string, destPath string, patchPath string) error {
-	data, err := os.ReadFile(srcPath)
+// qpatchStringsFromReader processes data from io.Reader and patch data from io.Reader, writing results to io.Writer
+func qpatchStringsFromReader(srcReader io.Reader, destWriter io.Writer, patchReader io.Reader) error {
+	// Read source data
+	data, err := io.ReadAll(srcReader)
 	if err != nil {
-		return fmt.Errorf("couldn't read source file %s: %w", srcPath, err)
+		return fmt.Errorf("couldn't read source data: %w", err)
 	}
 
-	// Parse patch path, line by line.
-	patchFile, err := os.Open(patchPath)
-	if err != nil {
-		return fmt.Errorf("couldn't open patch file %s: %w", patchPath, err)
-	}
-	defer patchFile.Close()
-
-	scanner := bufio.NewScanner(patchFile)
+	// Parse patch data, line by line
+	scanner := bufio.NewScanner(patchReader)
 
 	lineNum := 0
 	for scanner.Scan() {
@@ -72,20 +69,45 @@ func qpatchStrings(srcPath string, destPath string, patchPath string) error {
 		line := scanner.Text()
 		err := handleLine(data, line)
 		if err != nil {
-			fmt.Printf("warning: ignored '%v' line %v due to error: %v\n", patchPath, lineNum, err)
+			fmt.Printf("warning: ignored line %v due to error: %v\n", lineNum, err)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("couldn't scan patch file %s: %w", patchPath, err)
+		return fmt.Errorf("couldn't scan patch data: %w", err)
 	}
 
-	// Write to output file
-	err = os.WriteFile(destPath, data, 0755)
+	// Write to output
+	_, err = destWriter.Write(data)
 	if err != nil {
-		return fmt.Errorf("couldn't write %s: %w", destPath, err)
+		return fmt.Errorf("couldn't write output: %w", err)
 	}
 
-	//fmt.Printf("Patched %s -> %s", srcPath, destPath)
 	return nil
+}
+
+// qpatchStrings is the convenience function that maintains the original file path interface
+func qpatchStrings(srcPath string, destPath string, patchPath string) error {
+	// Open source file
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("couldn't read source file %s: %w", srcPath, err)
+	}
+	defer srcFile.Close()
+
+	// Open patch file
+	patchFile, err := os.Open(patchPath)
+	if err != nil {
+		return fmt.Errorf("couldn't open patch file %s: %w", patchPath, err)
+	}
+	defer patchFile.Close()
+
+	// Create destination file
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("couldn't create destination file %s: %w", destPath, err)
+	}
+	defer destFile.Close()
+
+	return qpatchStringsFromReader(srcFile, destFile, patchFile)
 }

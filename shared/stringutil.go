@@ -38,13 +38,10 @@ func init() {
 	// Unicode madness - convert from commonly used unicode characters to ASCII equivalents
 	CharsetMapToByte['\u2013'] = CharsetMapToByte['-']  // en dash (–)
 	CharsetMapToByte['\u2014'] = CharsetMapToByte['-']  // em dash (—)
-	CharsetMapToByte['\u2018'] = CharsetMapToByte['\''] // left single quote (‘)
-	CharsetMapToByte['\u2019'] = CharsetMapToByte['\''] // right single quote (’)
-	CharsetMapToByte['\u201A'] = CharsetMapToByte['"']  // left double quote (“)
-	CharsetMapToByte['\u201B'] = CharsetMapToByte['"']  // right double quote (”)
-
-	// Initialize language models
-	initLanguageModels()
+	CharsetMapToByte['\u2018'] = CharsetMapToByte['\''] // left single quote (')
+	CharsetMapToByte['\u2019'] = CharsetMapToByte['\''] // right single quote (')
+	CharsetMapToByte['\u201A'] = CharsetMapToByte['"']  // left double quote (")
+	CharsetMapToByte['\u201B'] = CharsetMapToByte['"']  // right double quote (")
 }
 
 func UnescapeString(s string) (string, error) {
