@@ -39,6 +39,31 @@ var validHumanChars = map[byte]bool{
 	0xD2: true, // Ď
 }
 
+// IsAcceptableStringStart checks if a character is acceptable as the start of a human-readable string
+// This is more restrictive than validHumanChars - only letters and some common starting characters
+func IsAcceptableStringStart(b byte) bool {
+	// Letters (both cases)
+	if (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') {
+		return true
+	}
+
+	// Czech accented letters (lowercase)
+	if b == 0xA0 || b == 0xA1 || b == 0xA3 || b == 0xA7 || b == 0x9F ||
+		b == 0x85 || b == 0x82 || b == 0xE7 || b == 0xD8 || b == 0xE5 ||
+		b == 0xEC || b == 0xFD || b == 0x9C || b == 0xD4 {
+		return true
+	}
+
+	// Czech accented letters (uppercase)
+	if b == 0xB5 || b == 0xD6 || b == 0xE9 || b == 0xA6 || b == 0xAC ||
+		b == 0xDE || b == 0x90 || b == 0xE6 || b == 0xB7 || b == 0xD5 ||
+		b == 0xED || b == 0xFC || b == 0x9B || b == 0xD2 {
+		return true
+	}
+
+	return false
+}
+
 // IsLikelyHumanLanguage checks if at least 2/3 of the string consists of valid human-readable characters
 func IsLikelyHumanLanguage(bytes []byte) bool {
 	const minLength = 3

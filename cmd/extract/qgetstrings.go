@@ -25,63 +25,65 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer) error {
 	totalStrings := 0
 	potentialStrings := 0
 	acceptedStrings := 0
+	skippedBadStart := 0
 
-	stringBegin := 0
-	at := 0
+	pos := 0
 	end := len(data)
-	for at != end {
-		if data[at] == 0 {
-			if at-stringBegin > 2 { // Only process strings longer than 2 chars
-				potentialStrings++
-				s := shared.ToString(data[stringBegin:at])
 
-				// Debug: Check for Borland string
-				if !foundBorland && strings.Contains(s, "Borland") {
-					foundBorland = true
-					if debugMode {
-						fmt.Printf("DEBUG: Found Borland string at offset %08x: \"%s\"\n", stringBegin, s)
-					}
-				}
+	for pos < end {
+		// Find the next valid string starting from current position
+		stringContent, newPos, found := shared.FindNextValidString(data, pos, end)
 
-				// Debug: Show all potential strings when in debug mode
-				if debugMode {
-					fmt.Printf("DEBUG: Potential string %d at %08x: \"%s\" (len=%d)\n",
-						potentialStrings, stringBegin, s, at-stringBegin)
-				}
-
-				if foundBorland {
-					totalStrings++
-					isLikely := shared.IsLikelyHumanLanguage(data[stringBegin:at])
-					if isLikely {
-						acceptedStrings++
-						fmt.Fprintf(writer, "%08x-%08x: \"%v\"\n", stringBegin, at+1, s)
-
-						// Debug: Show all accepted strings when in debug mode
-						if debugMode {
-							fmt.Printf("DEBUG: ACCEPTED string %d: \"%s\"\n", acceptedStrings, s)
-						}
-					} else {
-						// Debug: Show all rejected strings when in debug mode
-						if debugMode {
-							fmt.Printf("DEBUG: REJECTED string %d: \"%s\"\n", totalStrings, s)
-						}
-					}
-				}
-			}
-			stringBegin = at + 1
+		if !found {
+			// No valid string found, move to next position and continue
+			pos = newPos
+			continue
 		}
 
-		at++
-	}
+		// Calculate the original start position for this string
+		stringStart := pos
+		pos = newPos
 
-	// Handle final string if no null terminator
-	if stringBegin != at && at-stringBegin > 2 {
 		potentialStrings++
+
+		// Debug: Check for Borland string
+		if !foundBorland && strings.Contains(stringContent, "Borland") {
+			foundBorland = true
+			if debugMode {
+				fmt.Printf("DEBUG: Found Borland string at offset %08x: \"%s\"\n", stringStart, stringContent)
+			}
+		}
+
+		// Debug: Show all potential strings when in debug mode
+		if debugMode {
+			fmt.Printf("DEBUG: Potential string %d at %08x: \"%s\" (len=%d)\n",
+				potentialStrings, stringStart, stringContent, len(stringContent))
+		}
+
 		if foundBorland {
 			totalStrings++
-			if shared.IsLikelyHumanLanguage(data[stringBegin:at]) {
+			// Convert string back to bytes for language detection
+			stringBytes, err := shared.FromString(stringContent)
+			if err != nil {
+				if debugMode {
+					fmt.Printf("DEBUG: Error converting string back to bytes: %v\n", err)
+				}
+				continue
+			}
+			isLikely := shared.IsLikelyHumanLanguage(stringBytes)
+			if isLikely {
 				acceptedStrings++
-				fmt.Fprintf(writer, "%08x-%08x: \"%v\" NO_NUL\n", stringBegin, at, shared.ToString(data[stringBegin:at]))
+				fmt.Fprintf(writer, "%08x-%08x: \"%v\"\n", stringStart, stringStart+len(stringBytes), stringContent)
+
+				// Debug: Show all accepted strings when in debug mode
+				if debugMode {
+					fmt.Printf("DEBUG: ACCEPTED string %d: \"%s\"\n", acceptedStrings, stringContent)
+				}
+			} else {
+				// Debug: Show all rejected strings when in debug mode
+				if debugMode {
+					fmt.Printf("DEBUG: REJECTED string %d: \"%s\"\n", totalStrings, stringContent)
+				}
 			}
 		}
 	}
@@ -91,6 +93,7 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer) error {
 		fmt.Printf("  - Total potential strings: %d\n", potentialStrings)
 		fmt.Printf("  - Strings after Borland: %d\n", totalStrings)
 		fmt.Printf("  - Accepted as Czech: %d\n", acceptedStrings)
+		fmt.Printf("  - Skipped bad start: %d\n", skippedBadStart)
 		fmt.Printf("  - Found Borland marker: %v\n", foundBorland)
 	}
 

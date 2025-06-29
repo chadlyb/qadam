@@ -119,3 +119,43 @@ func FromString(str string) ([]byte, error) {
 
 	return result, nil
 }
+
+// FindNextValidString finds the next valid string starting from startPos within the given byte range
+// Returns the string content, new start position, and whether a valid string was found
+// If no valid string is found, returns empty string, endPos, and false
+func FindNextValidString(data []byte, startPos, endPos int) (string, int, bool) {
+	if startPos >= endPos || endPos-startPos <= 2 {
+		return "", endPos, false
+	}
+
+	pos := startPos
+	for pos < endPos-2 {
+		// Find the next null terminator
+		nullPos := -1
+		for j := pos; j < endPos; j++ {
+			if data[j] == 0 {
+				nullPos = j
+				break
+			}
+		}
+		if nullPos == -1 {
+			nullPos = endPos
+		}
+
+		// Scan for the first valid string start in this region
+		firstValid := -1
+		for i := pos; i < nullPos; i++ {
+			if IsAcceptableStringStart(data[i]) {
+				firstValid = i
+				break
+			}
+		}
+		if firstValid != -1 && nullPos-firstValid > 2 {
+			stringContent := ToString(data[firstValid:nullPos])
+			return stringContent, nullPos + 1, true
+		}
+		// Move to after the null terminator for the next region
+		pos = nullPos + 1
+	}
+	return "", endPos, false
+}

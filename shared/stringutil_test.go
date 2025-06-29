@@ -373,3 +373,104 @@ func TestRoundTripConversion(t *testing.T) {
 		})
 	}
 }
+
+func TestFindNextValidString(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           []byte
+		startPos       int
+		endPos         int
+		expectedString string
+		expectedNewPos int
+		expectedFound  bool
+	}{
+		{
+			name:           "simple_valid_string",
+			data:           []byte{0x00, 0x00, 'H', 'e', 'l', 'l', 'o', 0x00, 0x00},
+			startPos:       2,
+			endPos:         9,
+			expectedString: "Hello",
+			expectedNewPos: 8,
+			expectedFound:  true,
+		},
+		{
+			name:           "czech_string",
+			data:           []byte{0x00, 0xA0, 0xE7, 0x82, 0x00, 0x00}, // ášé
+			startPos:       1,
+			endPos:         6,
+			expectedString: "ášé",
+			expectedNewPos: 5,
+			expectedFound:  true,
+		},
+		{
+			name:           "string_starts_with_bad_character",
+			data:           []byte{0x00, ' ', 'H', 'e', 'l', 'l', 'o', 0x00},
+			startPos:       1,
+			endPos:         8,
+			expectedString: "Hello",
+			expectedNewPos: 8,
+			expectedFound:  true,
+		},
+		{
+			name:           "string_too_short",
+			data:           []byte{0x00, 'H', 'i', 0x00},
+			startPos:       1,
+			endPos:         4,
+			expectedString: "",
+			expectedNewPos: 4,
+			expectedFound:  false,
+		},
+		{
+			name:           "no_null_terminator",
+			data:           []byte{0x00, 'H', 'e', 'l', 'l', 'o'},
+			startPos:       1,
+			endPos:         6,
+			expectedString: "Hello",
+			expectedNewPos: 7,
+			expectedFound:  true,
+		},
+		{
+			name:           "range_too_small",
+			data:           []byte{'H', 'i'},
+			startPos:       0,
+			endPos:         2,
+			expectedString: "",
+			expectedNewPos: 2,
+			expectedFound:  false,
+		},
+		{
+			name:           "start_at_end",
+			data:           []byte{'H', 'e', 'l', 'l', 'o'},
+			startPos:       5,
+			endPos:         5,
+			expectedString: "",
+			expectedNewPos: 5,
+			expectedFound:  false,
+		},
+		{
+			name:           "multiple_strings_find_first",
+			data:           []byte{'H', 'i', 0x00, 'H', 'e', 'l', 'l', 'o', 0x00},
+			startPos:       0,
+			endPos:         9,
+			expectedString: "Hello",
+			expectedNewPos: 9,
+			expectedFound:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resultString, resultNewPos, resultFound := FindNextValidString(tt.data, tt.startPos, tt.endPos)
+
+			if resultString != tt.expectedString {
+				t.Errorf("FindNextValidString() string = %v, want %v", resultString, tt.expectedString)
+			}
+			if resultNewPos != tt.expectedNewPos {
+				t.Errorf("FindNextValidString() newPos = %v, want %v", resultNewPos, tt.expectedNewPos)
+			}
+			if resultFound != tt.expectedFound {
+				t.Errorf("FindNextValidString() found = %v, want %v", resultFound, tt.expectedFound)
+			}
+		})
+	}
+}
