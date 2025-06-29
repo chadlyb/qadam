@@ -26,24 +26,18 @@ jobs:
         run: go test -v ./...
 
   build:
-    name: Build for ${{ matrix.os }}-${{ matrix.arch }}
-    runs-on: ${{ matrix.os }}
+    name: Build for ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            arch: amd64
-            goos: linux
+          - goos: linux
             goarch: amd64
             ext: ""
-          - os: windows-latest
-            arch: amd64
-            goos: windows
+          - goos: windows
             goarch: amd64
             ext: ".exe"
-          - os: macos-latest
-            arch: amd64
-            goos: darwin
+          - goos: darwin
             goarch: amd64
             ext: ""
 
@@ -59,14 +53,14 @@ jobs:
       - name: Build extract tool
         run: |
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
-            -ldflags="-s -w" \
+            -ldflags="-s -w -X main.version=${{ github.sha }}" \
             -o extract${{ matrix.ext }} \
             ./cmd/extract
 
       - name: Build build tool
         run: |
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
-            -ldflags="-s -w" \
+            -ldflags="-s -w -X main.version=${{ github.sha }}" \
             -o build${{ matrix.ext }} \
             ./cmd/build
 
@@ -81,8 +75,10 @@ jobs:
         run: |
           cd release
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            7z a ../qadam-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
+            # Use zip for Windows (available on Ubuntu)
+            zip -r ../qadam-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
           else
+            # Use tar.gz for Unix-like systems
             tar -czf ../qadam-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
           fi
 

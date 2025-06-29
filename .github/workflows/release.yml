@@ -18,24 +18,18 @@ env:
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}-${{ matrix.arch }}
-    runs-on: ${{ matrix.os }}
+    name: Build for ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            arch: amd64
-            goos: linux
+          - goos: linux
             goarch: amd64
             ext: ""
-          - os: windows-latest
-            arch: amd64
-            goos: windows
+          - goos: windows
             goarch: amd64
             ext: ".exe"
-          - os: macos-latest
-            arch: amd64
-            goos: darwin
+          - goos: darwin
             goarch: amd64
             ext: ""
 
@@ -73,8 +67,10 @@ jobs:
         run: |
           cd release
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            7z a ../qadam-${{ github.event.inputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
+            # Use zip for Windows (available on Ubuntu)
+            zip -r ../qadam-${{ github.event.inputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
           else
+            # Use tar.gz for Unix-like systems
             tar -czf ../qadam-${{ github.event.inputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
           fi
 
