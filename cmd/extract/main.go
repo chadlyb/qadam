@@ -76,6 +76,10 @@ func main() {
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		shared.PauseIfNeeded("Extraction failed! Press Enter to continue...")
 		os.Exit(1)
 	}
+
+	// Pause if running from Explorer so the window doesn't close immediately
+	shared.PauseIfNeeded("Extraction succeeded! Press Enter to continue...")
 }
