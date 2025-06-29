@@ -460,7 +460,7 @@ func TestFindNextValidString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resultString, resultNewPos, resultFound := FindNextValidString(tt.data, tt.startPos, tt.endPos)
+			resultString, resultNewPos, resultFound := FindNextValidString(tt.data, tt.startPos, tt.endPos, false)
 
 			if resultString != tt.expectedString {
 				t.Errorf("FindNextValidString() string = %v, want %v", resultString, tt.expectedString)

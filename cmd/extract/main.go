@@ -15,7 +15,7 @@ var version = "dev"
 // Global debug flag
 var debugMode = false
 
-func extract(srcPath string) error {
+func extract(srcPath string, allStrings bool) error {
 	destPath := filepath.Join(srcPath, "..", "extracted")
 	destOgPath := filepath.Join(destPath, "og")
 
@@ -34,12 +34,12 @@ func extract(srcPath string) error {
 		return fmt.Errorf("couldn't decompile RESOURCE.FIL: %w", err)
 	}
 
-	err = qgetStrings(filepath.Join(srcPath, "GAME.EXE"), filepath.Join(destPath, "game_exe.txt"))
+	err = qgetStrings(filepath.Join(srcPath, "GAME.EXE"), filepath.Join(destPath, "game_exe.txt"), allStrings)
 	if err != nil {
 		return fmt.Errorf("couldn't get strings from GAME.EXE: %w", err)
 	}
 
-	err = qgetStrings(filepath.Join(srcPath, "INSTALL.EXE"), filepath.Join(destPath, "install_exe.txt"))
+	err = qgetStrings(filepath.Join(srcPath, "INSTALL.EXE"), filepath.Join(destPath, "install_exe.txt"), allStrings)
 	if err != nil {
 		return fmt.Errorf("couldn't get strings from INSTALL.EXE: %w", err)
 	}
@@ -50,6 +50,7 @@ func extract(srcPath string) error {
 func main() {
 	showVersion := flag.Bool("version", false, "Show version information")
 	debug := flag.Bool("v", false, "Enable verbose debug output")
+	allStrings := flag.Bool("all-strings", false, "Extract all strings (non-conservative mode)")
 	flag.Parse()
 
 	if *showVersion {
@@ -63,6 +64,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: %v <original source directory>\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "       %v -version\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "       %v -v <original source directory>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "       %v --all-strings <original source directory>\n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -72,7 +74,11 @@ func main() {
 		fmt.Println("DEBUG: Verbose mode enabled")
 	}
 
-	err := extract(args[0])
+	if *allStrings {
+		fmt.Println("INFO: All-strings mode enabled (non-conservative extraction)")
+	}
+
+	err := extract(args[0], *allStrings)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

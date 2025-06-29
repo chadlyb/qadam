@@ -19,6 +19,8 @@ var CharsetRunes = []rune(CharsetString)
 
 var CharsetMapToByte = map[rune]byte{}
 
+const MinStringLength = 3
+
 func init() {
 	for k, v := range CharsetRunes {
 		_, has := CharsetMapToByte[v]
@@ -123,13 +125,13 @@ func FromString(str string) ([]byte, error) {
 // FindNextValidString finds the next valid string starting from startPos within the given byte range
 // Returns the string content, new start position, and whether a valid string was found
 // If no valid string is found, returns empty string, endPos, and false
-func FindNextValidString(data []byte, startPos, endPos int) (string, int, bool) {
-	if startPos >= endPos || endPos-startPos <= 2 {
+func FindNextValidString(data []byte, startPos, endPos int, catchAll bool) (string, int, bool) {
+	if startPos >= endPos || endPos-startPos <= MinStringLength-1 {
 		return "", endPos, false
 	}
 
 	pos := startPos
-	for pos < endPos-2 {
+	for pos < endPos-MinStringLength+1 {
 		// Find the next null terminator
 		nullPos := -1
 		for j := pos; j < endPos; j++ {
@@ -142,6 +144,15 @@ func FindNextValidString(data []byte, startPos, endPos int) (string, int, bool) 
 			nullPos = endPos
 		}
 
+		if catchAll {
+			if nullPos-pos > 0 {
+				stringContent := ToString(data[pos:nullPos])
+				return stringContent, nullPos + 1, true
+			}
+			pos = nullPos + 1
+			continue
+		}
+
 		// Scan for the first valid string start in this region
 		firstValid := -1
 		for i := pos; i < nullPos; i++ {
@@ -150,7 +161,7 @@ func FindNextValidString(data []byte, startPos, endPos int) (string, int, bool) 
 				break
 			}
 		}
-		if firstValid != -1 && nullPos-firstValid > 2 {
+		if firstValid != -1 && nullPos-firstValid >= MinStringLength {
 			stringContent := ToString(data[firstValid:nullPos])
 			return stringContent, nullPos + 1, true
 		}

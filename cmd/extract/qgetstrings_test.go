@@ -21,8 +21,12 @@ func TestQGetStrings(t *testing.T) {
 		0x41, 0x68, 0x6F, 0x6A, 0x20, 0x73, 0x76, 0xD8, 0x74, 0x65, 0x00, // "Ahoj světe\0" (using correct charset)
 		// Some English text
 		0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x00, // "Hello world\0"
-		// More Czech text
-		0x54, 0x72, 0x65, 0x73, 0x74, 0x6E, 0x69, 0x63, 0x65, 0x20, 0x6E, 0x61, 0xE7, 0x65, 0x00, // "Trestnice naše\0"
+		// More Czech text (typo fixed)
+		0x54, 0x65, 0x73, 0x74, 0x6E, 0x69, 0x63, 0x65, 0x20, 0x6E, 0x61, 0xE7, 0x65, 0x00, // "Testnice naše\0"
+		// Short string
+		0x54, 0x65, 0x73, 0x74, 0x00, // "Test\0"
+		// Numbers (now 12345)
+		0x31, 0x32, 0x33, 0x34, 0x35, 0x00, // "12345\0"
 	}
 
 	tempDir := t.TempDir()
@@ -35,34 +39,71 @@ func TestQGetStrings(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	// Run string extraction
-	err = qgetStrings(testFile, outputFile)
-	if err != nil {
-		t.Fatalf("qgetStrings failed: %v", err)
-	}
+	t.Run("Conservative", func(t *testing.T) {
+		err = qgetStrings(testFile, outputFile, false)
+		if err != nil {
+			t.Fatalf("qgetStrings failed: %v", err)
+		}
 
-	// Read output and verify
-	output, err := os.ReadFile(outputFile)
-	if err != nil {
-		t.Fatalf("Failed to read output file: %v", err)
-	}
+		output, err := os.ReadFile(outputFile)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
 
-	outputStr := string(output)
-	t.Logf("Output: %s", outputStr)
+		outputStr := string(output)
+		t.Logf("Output: %s", outputStr)
 
-	// Should find at least some Czech strings
-	if len(outputStr) == 0 {
-		t.Error("No strings were extracted")
-	}
+		if len(outputStr) == 0 {
+			t.Error("No strings were extracted")
+		}
+		if !containsString(outputStr, "Ahoj světe") {
+			t.Error("Expected to find 'Ahoj světe' in output")
+		}
+		if !containsString(outputStr, "Testnice naše") {
+			t.Error("Expected to find 'Testnice naše' in output")
+		}
+		if containsString(outputStr, "12345") {
+			t.Error("Did not expect to find '12345' in conservative output")
+		}
+		if !containsString(outputStr, "Test\"") {
+			t.Error("Expected to find 'Test' in conservative output (min length 3)")
+		}
+		// Do not expect 'Hello' before Borland in conservative mode
+		//if !containsString(outputStr, "Hello\"") && containsString(outputStr, "Hello world") {
+		//	t.Error("Expected to find short 'Hello' in conservative output (min length 3)")
+		//}
+	})
 
-	// Should contain the Czech strings we added
-	if !containsString(outputStr, "Ahoj světe") {
-		t.Error("Expected to find 'Ahoj světe' in output")
-	}
+	t.Run("CatchAll", func(t *testing.T) {
+		err = qgetStrings(testFile, outputFile, true)
+		if err != nil {
+			t.Fatalf("qgetStrings (catchAll) failed: %v", err)
+		}
 
-	if !containsString(outputStr, "Trestnice naše") {
-		t.Error("Expected to find 'Trestnice naše' in output")
-	}
+		output, err := os.ReadFile(outputFile)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+
+		outputStr := string(output)
+		t.Logf("CatchAll Output: %s", outputStr)
+
+		if !containsString(outputStr, "Ahoj světe") {
+			t.Error("Expected to find 'Ahoj světe' in catch-all output")
+		}
+		if !containsString(outputStr, "Testnice naše") {
+			t.Error("Expected to find 'Testnice naše' in catch-all output")
+		}
+		if !containsString(outputStr, "12345") {
+			t.Error("Expected to find '12345' in catch-all output")
+		}
+		if !containsString(outputStr, "Test\"") {
+			t.Error("Expected to find 'Test' in catch-all output")
+		}
+		if !containsString(outputStr, "Hello\"") {
+			t.Error("Expected to find short 'Hello' in catch-all output")
+		}
+	})
 }
 
 // TestQGetStringsFromReader demonstrates the improved testability with buffers
@@ -75,57 +116,104 @@ func TestQGetStringsFromReader(t *testing.T) {
 		0x41, 0x68, 0x6F, 0x6A, 0x20, 0x73, 0x76, 0xD8, 0x74, 0x65, 0x00, // "Ahoj světe\0"
 		// English text
 		0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x00, // "Hello world\0"
-		// Numbers (should be rejected)
+		// Numbers (now 12345)
 		0x31, 0x32, 0x33, 0x34, 0x35, 0x00, // "12345\0"
+		// Short string
+		0x54, 0x65, 0x73, 0x74, 0x00, // "Test\0"
+		// Short Hello
+		0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x00, // "Hello\0"
 	}
 
-	// Create input reader and output writer
-	reader := bytes.NewReader(testData)
-	var writer bytes.Buffer
-
-	// Run the function
-	err := qgetStringsFromReader(reader, &writer)
-	if err != nil {
-		t.Fatalf("qgetStringsFromReader failed: %v", err)
-	}
-
-	output := writer.String()
-	t.Logf("Output: %s", output)
-
-	// Verify results
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-
-	// Should have extracted strings
-	if len(lines) == 0 {
-		t.Error("No strings were extracted")
-	}
-
-	// Should contain Czech and English strings
-	foundCzech := false
-	foundEnglish := false
-	foundNumbers := false
-
-	for _, line := range lines {
-		if strings.Contains(line, "Ahoj světe") {
-			foundCzech = true
+	t.Run("Conservative", func(t *testing.T) {
+		reader := bytes.NewReader(testData)
+		var writer bytes.Buffer
+		err := qgetStringsFromReader(reader, &writer, false)
+		if err != nil {
+			t.Fatalf("qgetStringsFromReader failed: %v", err)
 		}
-		if strings.Contains(line, "Hello world") {
-			foundEnglish = true
-		}
-		if strings.Contains(line, "12345") {
-			foundNumbers = true
-		}
-	}
 
-	if !foundCzech {
-		t.Error("Expected to find 'Ahoj světe' in output")
-	}
-	if !foundEnglish {
-		t.Error("Expected to find 'Hello world' in output")
-	}
-	if foundNumbers {
-		t.Error("Expected '12345' to be rejected")
-	}
+		output := writer.String()
+		t.Logf("Output: %s", output)
+
+		lines := strings.Split(strings.TrimSpace(output), "\n")
+		if len(lines) == 0 {
+			t.Error("No strings were extracted")
+		}
+		foundCzech := false
+		foundEnglish := false
+		foundNumbers := false
+		foundShort := false
+		for _, line := range lines {
+			if strings.Contains(line, "Ahoj světe") {
+				foundCzech = true
+			}
+			if strings.Contains(line, "Hello world") {
+				foundEnglish = true
+			}
+			if strings.Contains(line, "12345") {
+				foundNumbers = true
+			}
+			if strings.Contains(line, "Test\"") || (strings.Contains(line, "Hello\"") && !strings.Contains(line, "Hello world")) {
+				foundShort = true
+			}
+		}
+		if !foundCzech {
+			t.Error("Expected to find 'Ahoj světe' in output")
+		}
+		if !foundEnglish {
+			t.Error("Expected to find 'Hello world' in output")
+		}
+		if foundNumbers {
+			t.Error("Expected '12345' to be rejected in conservative mode")
+		}
+		if !foundShort {
+			t.Error("Expected short strings to be present in conservative mode (min length 3)")
+		}
+	})
+
+	t.Run("CatchAll", func(t *testing.T) {
+		reader := bytes.NewReader(testData)
+		var writer bytes.Buffer
+		err := qgetStringsFromReader(reader, &writer, true)
+		if err != nil {
+			t.Fatalf("qgetStringsFromReader (catchAll) failed: %v", err)
+		}
+
+		output := writer.String()
+		t.Logf("CatchAll Output: %s", output)
+
+		lines := strings.Split(strings.TrimSpace(output), "\n")
+		foundCzech := false
+		foundEnglish := false
+		foundNumbers := false
+		foundShort := false
+		for _, line := range lines {
+			if strings.Contains(line, "Ahoj světe") {
+				foundCzech = true
+			}
+			if strings.Contains(line, "Hello world") {
+				foundEnglish = true
+			}
+			if strings.Contains(line, "12345") {
+				foundNumbers = true
+			}
+			if strings.Contains(line, "Test\"") || (strings.Contains(line, "Hello\"") && !strings.Contains(line, "Hello world")) {
+				foundShort = true
+			}
+		}
+		if !foundCzech {
+			t.Error("Expected to find 'Ahoj světe' in catch-all output")
+		}
+		if !foundEnglish {
+			t.Error("Expected to find 'Hello world' in catch-all output")
+		}
+		if !foundNumbers {
+			t.Error("Expected '12345' to be present in catch-all mode")
+		}
+		if !foundShort {
+			t.Error("Expected short strings to be present in catch-all mode")
+		}
+	})
 }
 
 func TestIsLikelyHumanStringWithRealData(t *testing.T) {

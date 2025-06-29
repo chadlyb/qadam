@@ -10,7 +10,7 @@ import (
 )
 
 // qgetStringsFromReader processes data from an io.Reader and writes results to an io.Writer
-func qgetStringsFromReader(reader io.Reader, writer io.Writer) error {
+func qgetStringsFromReader(reader io.Reader, writer io.Writer, catchAll bool) error {
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("couldn't read data: %w", err)
@@ -32,7 +32,7 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer) error {
 
 	for pos < end {
 		// Find the next valid string starting from current position
-		stringContent, newPos, found := shared.FindNextValidString(data, pos, end)
+		stringContent, newPos, found := shared.FindNextValidString(data, pos, end, catchAll)
 
 		if !found {
 			// No valid string found, move to next position and continue
@@ -60,9 +60,18 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer) error {
 				potentialStrings, stringStart, stringContent, len(stringContent))
 		}
 
-		if foundBorland {
+		// In catch-all mode, process all strings regardless of Borland or length
+		if catchAll || foundBorland {
 			totalStrings++
-			// Convert string back to bytes for language detection
+			if catchAll {
+				acceptedStrings++
+				fmt.Fprintf(writer, "%08x-%08x: \"%v\"\n", stringStart, stringStart+len([]byte(stringContent)), stringContent)
+				if debugMode {
+					fmt.Printf("DEBUG: ACCEPTED string %d: \"%s\"\n", acceptedStrings, stringContent)
+				}
+				continue
+			}
+			// Conservative mode: Convert string back to bytes for language detection
 			stringBytes, err := shared.FromString(stringContent)
 			if err != nil {
 				if debugMode {
@@ -74,13 +83,10 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer) error {
 			if isLikely {
 				acceptedStrings++
 				fmt.Fprintf(writer, "%08x-%08x: \"%v\"\n", stringStart, stringStart+len(stringBytes), stringContent)
-
-				// Debug: Show all accepted strings when in debug mode
 				if debugMode {
 					fmt.Printf("DEBUG: ACCEPTED string %d: \"%s\"\n", acceptedStrings, stringContent)
 				}
 			} else {
-				// Debug: Show all rejected strings when in debug mode
 				if debugMode {
 					fmt.Printf("DEBUG: REJECTED string %d: \"%s\"\n", totalStrings, stringContent)
 				}
@@ -95,30 +101,25 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer) error {
 		fmt.Printf("  - Accepted as Czech: %d\n", acceptedStrings)
 		fmt.Printf("  - Skipped bad start: %d\n", skippedBadStart)
 		fmt.Printf("  - Found Borland marker: %v\n", foundBorland)
+		fmt.Printf("  - Catch-all mode: %v\n", catchAll)
 	}
 
 	return nil
 }
 
-// qgetStrings is the convenience function that maintains the original file path interface
-func qgetStrings(srcPath string, destPath string) error {
-	// Open source file
+// qgetStrings extracts strings from a file and writes them to another file
+func qgetStrings(srcPath, destPath string, allStrings bool) error {
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
-		return fmt.Errorf("couldn't open %s: %w", srcPath, err)
+		return fmt.Errorf("couldn't open source file: %w", err)
 	}
 	defer srcFile.Close()
 
-	// Create destination file
 	destFile, err := os.Create(destPath)
 	if err != nil {
-		return fmt.Errorf("couldn't create file '%v': %w", destPath, err)
+		return fmt.Errorf("couldn't create destination file: %w", err)
 	}
 	defer destFile.Close()
 
-	if debugMode {
-		fmt.Printf("DEBUG: Processing %s -> %s\n", srcPath, destPath)
-	}
-
-	return qgetStringsFromReader(srcFile, destFile)
+	return qgetStringsFromReader(srcFile, destFile, allStrings)
 }
