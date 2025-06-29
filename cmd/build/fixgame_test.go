@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 )
 
@@ -74,6 +75,53 @@ func TestFixgameFromReaderWithOutOfBounds(t *testing.T) {
 	expectedError := "offset 0x1A706 out of bounds"
 	if !contains(err.Error(), expectedError) {
 		t.Errorf("Expected error containing '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TestFixgameInPlacePatching(t *testing.T) {
+	// Test that we can patch a file "in place" using the buffer approach
+	// This simulates the scenario where we read a file, patch it, and write it back
+
+	// Create test data that simulates a game executable
+	testData := make([]byte, 0x1A710)
+	for i := range testData {
+		testData[i] = byte(i & 0xFF)
+	}
+
+	// Set some initial values at the patch offsets
+	binary.LittleEndian.PutUint32(testData[0x1A706:], 0x12345678) // TEXTS.FIL size
+	binary.LittleEndian.PutUint32(testData[0x1A6E6:], 0x87654321) // RESOURCE.FIL size
+
+	// Create a buffer with the test data
+	srcBuffer := bytes.NewReader(testData)
+	var dstBuffer bytes.Buffer
+
+	// Patch the data
+	fileSizes := []uint32{0x1000, 0x2000} // New sizes
+	patchOffsets := []int{0x0001A706, 0x0001A6E6}
+
+	err := fixgameFromReader(srcBuffer, &dstBuffer, fileSizes, patchOffsets)
+	if err != nil {
+		t.Fatalf("fixgameFromReader failed: %v", err)
+	}
+
+	result := dstBuffer.Bytes()
+
+	// Verify the patches were applied correctly
+	patchedTextsSize := binary.LittleEndian.Uint32(result[0x1A706:])
+	patchedResourceSize := binary.LittleEndian.Uint32(result[0x1A6E6:])
+
+	if patchedTextsSize != 0x1000 {
+		t.Errorf("TEXTS.FIL size patch failed. Expected 0x1000, got 0x%X", patchedTextsSize)
+	}
+
+	if patchedResourceSize != 0x2000 {
+		t.Errorf("RESOURCE.FIL size patch failed. Expected 0x2000, got 0x%X", patchedResourceSize)
+	}
+
+	// Verify other data remains unchanged
+	if result[0] != 0x00 || result[1] != 0x01 {
+		t.Error("Non-patch data was modified unexpectedly")
 	}
 }
 
