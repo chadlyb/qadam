@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
@@ -123,50 +124,44 @@ func FromString(str string) ([]byte, error) {
 }
 
 // FindNextValidString finds the next valid string starting from startPos within the given byte range
-// Returns the string content, new start position, and whether a valid string was found
-// If no valid string is found, returns empty string, endPos, and false
-func FindNextValidString(data []byte, startPos, endPos int, catchAll bool) (string, int, bool) {
-	if startPos >= endPos || endPos-startPos <= MinStringLength-1 {
-		return "", endPos, false
+// Returns (startOffset, endOffset) – endOffset is the index of the NUL byte (or endPos if none)
+// If no string found, returns (-1,endPos,false).
+func FindNextValidString(data []byte, startPos, endPos int, catchAll bool) (int, int, bool) {
+	if startPos >= endPos {
+		return -1, endPos, false
 	}
 
-	pos := startPos
-	for pos < endPos-MinStringLength+1 {
-		// Find the next null terminator
-		nullPos := -1
-		for j := pos; j < endPos; j++ {
-			if data[j] == 0 {
-				nullPos = j
-				break
-			}
-		}
-		if nullPos == -1 {
+	for start := startPos; start < endPos; {
+		// Locate the next NUL terminator (if any)
+		slice := data[start:endPos]
+		nullRel := bytes.IndexByte(slice, 0)
+		var nullPos int
+		if nullRel == -1 {
 			nullPos = endPos
+		} else {
+			nullPos = start + nullRel
 		}
 
-		if catchAll {
-			if nullPos-pos > 0 {
-				stringContent := ToString(data[pos:nullPos])
-				return stringContent, nullPos + 1, true
+		regionLen := nullPos - start
+		if regionLen > 0 { // non-empty region
+			if catchAll {
+				return start, nullPos, true
 			}
-			pos = nullPos + 1
-			continue
+
+			// Find first acceptable starting character in this region
+			for i := start; i < nullPos; i++ {
+				if IsAcceptableStringStart(data[i]) {
+					if nullPos-i >= MinStringLength {
+						return i, nullPos, true
+					}
+					break // first valid start too short; rest of region shares same nullPos
+				}
+			}
 		}
 
-		// Scan for the first valid string start in this region
-		firstValid := -1
-		for i := pos; i < nullPos; i++ {
-			if IsAcceptableStringStart(data[i]) {
-				firstValid = i
-				break
-			}
-		}
-		if firstValid != -1 && nullPos-firstValid >= MinStringLength {
-			stringContent := ToString(data[firstValid:nullPos])
-			return stringContent, nullPos + 1, true
-		}
-		// Move to after the null terminator for the next region
-		pos = nullPos + 1
+		// Move past the terminator and continue scanning
+		start = nullPos + 1
 	}
-	return "", endPos, false
+
+	return -1, endPos, false
 }

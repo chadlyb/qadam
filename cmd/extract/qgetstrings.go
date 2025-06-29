@@ -32,19 +32,21 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer, catchAll bool) er
 
 	for pos < end {
 		// Find the next valid string starting from current position
-		stringContent, newPos, found := shared.FindNextValidString(data, pos, end, catchAll)
+		stringStart, stringEnd, found := shared.FindNextValidString(data, pos, end, catchAll)
 
 		if !found {
 			// No valid string found, move to next position and continue
-			pos = newPos
+			pos = stringEnd + 1
 			continue
 		}
 
 		// Calculate the original start position for this string
-		stringStart := pos
-		pos = newPos
+		pos = stringEnd + 1
 
 		potentialStrings++
+
+		// Generate the string content from the range
+		stringContent := shared.ToString(data[stringStart:stringEnd])
 
 		// Debug: Check for Borland string
 		if !foundBorland && strings.Contains(stringContent, "Borland") {
@@ -65,7 +67,7 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer, catchAll bool) er
 			totalStrings++
 			if catchAll {
 				acceptedStrings++
-				fmt.Fprintf(writer, "%08x-%08x: \"%v\"\n", stringStart, stringStart+len([]byte(stringContent)), stringContent)
+				fmt.Fprintf(writer, "%08x-%08x: \"%v\"\n", stringStart, stringEnd+1, stringContent)
 				if debugMode {
 					fmt.Printf("DEBUG: ACCEPTED string %d: \"%s\"\n", acceptedStrings, stringContent)
 				}
@@ -82,7 +84,7 @@ func qgetStringsFromReader(reader io.Reader, writer io.Writer, catchAll bool) er
 			isLikely := shared.IsLikelyHumanLanguage(stringBytes)
 			if isLikely {
 				acceptedStrings++
-				fmt.Fprintf(writer, "%08x-%08x: \"%v\"\n", stringStart, stringStart+len(stringBytes), stringContent)
+				fmt.Fprintf(writer, "%08x-%08x: \"%v\"\n", stringStart, stringEnd+1, stringContent)
 				if debugMode {
 					fmt.Printf("DEBUG: ACCEPTED string %d: \"%s\"\n", acceptedStrings, stringContent)
 				}

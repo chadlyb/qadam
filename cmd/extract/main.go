@@ -15,31 +15,35 @@ var version = "dev"
 // Global debug flag
 var debugMode = false
 
-func extract(srcPath string, allStrings bool) error {
-	destPath := filepath.Join(srcPath, "..", "extracted")
-	destOgPath := filepath.Join(destPath, "og")
+func extract(srcPath string, outputDir string, allStrings bool) error {
+	// Use provided output directory or default to ../extracted relative to source
+	if outputDir == "" {
+		outputDir = filepath.Join(srcPath, "..", "extracted")
+	}
+
+	destOgPath := filepath.Join(outputDir, "og")
 
 	err := shared.CopyCleanDir(srcPath, destOgPath)
 	if err != nil {
 		return fmt.Errorf("couldn't copy clean directory: %w", err)
 	}
 
-	err = qdecomp(filepath.Join(srcPath, "TEXTS.FIL"), filepath.Join(destPath, "texts.txt"))
+	err = qdecomp(filepath.Join(srcPath, "TEXTS.FIL"), filepath.Join(outputDir, "texts.txt"))
 	if err != nil {
 		return fmt.Errorf("couldn't decompile TEXTS.FIL: %w", err)
 	}
 
-	err = qdecomp(filepath.Join(srcPath, "RESOURCE.FIL"), filepath.Join(destPath, "resource.txt"))
+	err = qdecomp(filepath.Join(srcPath, "RESOURCE.FIL"), filepath.Join(outputDir, "resource.txt"))
 	if err != nil {
 		return fmt.Errorf("couldn't decompile RESOURCE.FIL: %w", err)
 	}
 
-	err = qgetStrings(filepath.Join(srcPath, "GAME.EXE"), filepath.Join(destPath, "game_exe.txt"), allStrings)
+	err = qgetStrings(filepath.Join(srcPath, "GAME.EXE"), filepath.Join(outputDir, "game_exe.txt"), allStrings)
 	if err != nil {
 		return fmt.Errorf("couldn't get strings from GAME.EXE: %w", err)
 	}
 
-	err = qgetStrings(filepath.Join(srcPath, "INSTALL.EXE"), filepath.Join(destPath, "install_exe.txt"), allStrings)
+	err = qgetStrings(filepath.Join(srcPath, "INSTALL.EXE"), filepath.Join(outputDir, "install_exe.txt"), allStrings)
 	if err != nil {
 		return fmt.Errorf("couldn't get strings from INSTALL.EXE: %w", err)
 	}
@@ -51,6 +55,7 @@ func main() {
 	showVersion := flag.Bool("version", false, "Show version information")
 	debug := flag.Bool("v", false, "Enable verbose debug output")
 	allStrings := flag.Bool("all-strings", false, "Extract all strings (non-conservative mode)")
+	outputDir := flag.String("o", "", "Output directory (default: ../extracted relative to source)")
 	flag.Parse()
 
 	if *showVersion {
@@ -65,6 +70,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "       %v -version\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "       %v -v <original source directory>\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "       %v --all-strings <original source directory>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "       %v -o <output_dir> <original source directory>\n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -78,7 +84,11 @@ func main() {
 		fmt.Println("INFO: All-strings mode enabled (non-conservative extraction)")
 	}
 
-	err := extract(args[0], *allStrings)
+	if *outputDir != "" {
+		fmt.Printf("INFO: Output directory: %s\n", *outputDir)
+	}
+
+	err := extract(args[0], *outputDir, *allStrings)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

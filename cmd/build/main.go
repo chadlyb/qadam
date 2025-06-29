@@ -54,18 +54,22 @@ func patchFileSizes(gameExePath, textsFilPath, resourceFilPath string) error {
 	return nil
 }
 
-func build(srcPath string) error {
+func build(srcPath string, outputDir string) error {
 	srcOgPath := filepath.Join(srcPath, "og")
-	destPath := filepath.Join(srcPath, "..", "built")
 
-	err := shared.CopyCleanDir(srcOgPath, destPath)
+	// Use provided output directory or default to ../built relative to source
+	if outputDir == "" {
+		outputDir = filepath.Join(srcPath, "..", "built")
+	}
+
+	err := shared.CopyCleanDir(srcOgPath, outputDir)
 	if err != nil {
 		return fmt.Errorf("failed to copy clean directory: %w", err)
 	}
 
-	textsFil := filepath.Join(destPath, "TEXTS.FIL")
-	resourceFil := filepath.Join(destPath, "RESOURCE.FIL")
-	gameExe := filepath.Join(destPath, "GAME.EXE")
+	textsFil := filepath.Join(outputDir, "TEXTS.FIL")
+	resourceFil := filepath.Join(outputDir, "RESOURCE.FIL")
+	gameExe := filepath.Join(outputDir, "GAME.EXE")
 
 	err = qcompile(filepath.Join(srcPath, "texts.txt"), textsFil)
 	if err != nil {
@@ -82,7 +86,7 @@ func build(srcPath string) error {
 		return fmt.Errorf("failed to patch strings in GAME.EXE: %w", err)
 	}
 
-	err = qpatchStrings(filepath.Join(srcOgPath, "INSTALL.EXE"), filepath.Join(destPath, "INSTALL.EXE"), filepath.Join(srcPath, "install_exe.txt"))
+	err = qpatchStrings(filepath.Join(srcOgPath, "INSTALL.EXE"), filepath.Join(outputDir, "INSTALL.EXE"), filepath.Join(srcPath, "install_exe.txt"))
 	if err != nil {
 		return fmt.Errorf("failed to patch strings in INSTALL.EXE: %w", err)
 	}
@@ -98,6 +102,7 @@ func build(srcPath string) error {
 
 func main() {
 	showVersion := flag.Bool("version", false, "Show version information")
+	outputDir := flag.String("o", "", "Output directory (default: ../built relative to source)")
 	flag.Parse()
 
 	if *showVersion {
@@ -105,13 +110,20 @@ func main() {
 		os.Exit(0)
 	}
 
-	if len(os.Args) < 2 {
+	// Get remaining arguments after flag parsing
+	args := flag.Args()
+	if len(args) < 1 {
 		fmt.Fprintf(os.Stderr, "Usage: %v <extracted directory>\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "       %v -version\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "       %v -o <output_dir> <extracted directory>\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	err := build(os.Args[1])
+	if *outputDir != "" {
+		fmt.Printf("INFO: Output directory: %s\n", *outputDir)
+	}
+
+	err := build(args[0], *outputDir)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

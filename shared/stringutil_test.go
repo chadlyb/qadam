@@ -376,100 +376,266 @@ func TestRoundTripConversion(t *testing.T) {
 
 func TestFindNextValidString(t *testing.T) {
 	tests := []struct {
-		name           string
-		data           []byte
-		startPos       int
-		endPos         int
-		expectedString string
-		expectedNewPos int
-		expectedFound  bool
+		name          string
+		data          []byte
+		startPos      int
+		endPos        int
+		catchAll      bool
+		expectedStart int
+		expectedEnd   int
+		expectedFound bool
+		description   string
 	}{
 		{
-			name:           "simple_valid_string",
-			data:           []byte{0x00, 0x00, 'H', 'e', 'l', 'l', 'o', 0x00, 0x00},
-			startPos:       2,
-			endPos:         9,
-			expectedString: "Hello",
-			expectedNewPos: 8,
-			expectedFound:  true,
+			name:          "empty data",
+			data:          []byte{},
+			startPos:      0,
+			endPos:        0,
+			catchAll:      false,
+			expectedStart: -1,
+			expectedEnd:   0,
+			expectedFound: false,
+			description:   "Empty data should return not found with endPos",
 		},
 		{
-			name:           "czech_string",
-			data:           []byte{0x00, 0xA0, 0xE7, 0x82, 0x00, 0x00}, // ášé
-			startPos:       1,
-			endPos:         6,
-			expectedString: "ášé",
-			expectedNewPos: 5,
-			expectedFound:  true,
+			name:          "too short data",
+			data:          []byte{0x41, 0x42},
+			startPos:      0,
+			endPos:        2,
+			catchAll:      false,
+			expectedStart: -1,
+			expectedEnd:   2,
+			expectedFound: false,
+			description:   "Data shorter than MinStringLength should return not found with endPos",
 		},
 		{
-			name:           "string_starts_with_bad_character",
-			data:           []byte{0x00, ' ', 'H', 'e', 'l', 'l', 'o', 0x00},
-			startPos:       1,
-			endPos:         8,
-			expectedString: "Hello",
-			expectedNewPos: 8,
-			expectedFound:  true,
+			name:          "valid string with null terminator",
+			data:          []byte{0x41, 0x42, 0x43, 0x00, 0x44, 0x45},
+			startPos:      0,
+			endPos:        6,
+			catchAll:      false,
+			expectedStart: 0,
+			expectedEnd:   3,
+			expectedFound: true,
+			description:   "Simple valid string should return correct start/end offsets",
 		},
 		{
-			name:           "string_too_short",
-			data:           []byte{0x00, 'H', 'i', 0x00},
-			startPos:       1,
-			endPos:         4,
-			expectedString: "",
-			expectedNewPos: 4,
-			expectedFound:  false,
+			name:          "valid string at end",
+			data:          []byte{0x00, 0x00, 0x41, 0x42, 0x43},
+			startPos:      0,
+			endPos:        5,
+			catchAll:      false,
+			expectedStart: 2,
+			expectedEnd:   5,
+			expectedFound: true,
+			description:   "String at end should return correct offsets",
 		},
 		{
-			name:           "no_null_terminator",
-			data:           []byte{0x00, 'H', 'e', 'l', 'l', 'o'},
-			startPos:       1,
-			endPos:         6,
-			expectedString: "Hello",
-			expectedNewPos: 7,
-			expectedFound:  true,
+			name:          "catch all mode - any non-empty string",
+			data:          []byte{0x00, 0x01, 0x02, 0x00, 0x41, 0x42},
+			startPos:      0,
+			endPos:        6,
+			catchAll:      true,
+			expectedStart: 1,
+			expectedEnd:   3,
+			expectedFound: true,
+			description:   "Catch-all mode should accept any non-empty string",
 		},
 		{
-			name:           "range_too_small",
-			data:           []byte{'H', 'i'},
-			startPos:       0,
-			endPos:         2,
-			expectedString: "",
-			expectedNewPos: 2,
-			expectedFound:  false,
+			name:          "no valid string start",
+			data:          []byte{0x00, 0x01, 0x02, 0x00, 0x00, 0x00},
+			startPos:      0,
+			endPos:        6,
+			catchAll:      false,
+			expectedStart: -1,
+			expectedEnd:   6,
+			expectedFound: false,
+			description:   "No valid string start should return not found with endPos",
 		},
 		{
-			name:           "start_at_end",
-			data:           []byte{'H', 'e', 'l', 'l', 'o'},
-			startPos:       5,
-			endPos:         5,
-			expectedString: "",
-			expectedNewPos: 5,
-			expectedFound:  false,
+			name:          "multiple strings - find first",
+			data:          []byte{0x00, 'H', 'e', 'l', 'l', 'o', 0x00, 'W', 'o', 'r', 'l', 'd', 0x00},
+			startPos:      0,
+			endPos:        13,
+			catchAll:      false,
+			expectedStart: 1,
+			expectedEnd:   6,
+			expectedFound: true,
+			description:   "Should find first valid string in multiple strings",
 		},
 		{
-			name:           "multiple_strings_find_first",
-			data:           []byte{'H', 'i', 0x00, 'H', 'e', 'l', 'l', 'o', 0x00},
-			startPos:       0,
-			endPos:         9,
-			expectedString: "Hello",
-			expectedNewPos: 9,
-			expectedFound:  true,
+			name:          "multiple strings - start from middle",
+			data:          []byte{0x00, 'H', 'e', 'l', 'l', 'o', 0x00, 'W', 'o', 'r', 'l', 'd', 0x00},
+			startPos:      7,
+			endPos:        13,
+			catchAll:      false,
+			expectedStart: 7,
+			expectedEnd:   12,
+			expectedFound: true,
+			description:   "Should find string when starting from middle position",
+		},
+		{
+			name:          "string with garbage prefix",
+			data:          []byte{0x00, 0x01, 0x02, 'H', 'e', 'l', 'l', 'o', 0x00},
+			startPos:      0,
+			endPos:        9,
+			catchAll:      false,
+			expectedStart: 3,
+			expectedEnd:   8,
+			expectedFound: true,
+			description:   "Should find string after garbage prefix",
+		},
+		{
+			name:          "string with garbage suffix",
+			data:          []byte{'H', 'e', 'l', 'l', 'o', 0x00, 0x01, 0x02, 0x03},
+			startPos:      0,
+			endPos:        9,
+			catchAll:      false,
+			expectedStart: 0,
+			expectedEnd:   5,
+			expectedFound: true,
+			description:   "Should find string before garbage suffix",
+		},
+		{
+			name:          "short valid string in catch-all mode",
+			data:          []byte{0x00, 'H', 'i', 0x00},
+			startPos:      0,
+			endPos:        4,
+			catchAll:      true,
+			expectedStart: 1,
+			expectedEnd:   3,
+			expectedFound: true,
+			description:   "Catch-all should accept short strings",
+		},
+		{
+			name:          "short invalid string in conservative mode",
+			data:          []byte{0x00, 'H', 'i', 0x00},
+			startPos:      0,
+			endPos:        4,
+			catchAll:      false,
+			expectedStart: -1,
+			expectedEnd:   4,
+			expectedFound: false,
+			description:   "Conservative mode should reject short strings",
+		},
+		{
+			name:          "null bytes only",
+			data:          []byte{0x00, 0x00, 0x00, 0x00},
+			startPos:      0,
+			endPos:        4,
+			catchAll:      false,
+			expectedStart: -1,
+			expectedEnd:   4,
+			expectedFound: false,
+			description:   "Null bytes only should return not found",
+		},
+		{
+			name:          "null bytes only in catch-all",
+			data:          []byte{0x00, 0x00, 0x00, 0x00},
+			startPos:      0,
+			endPos:        4,
+			catchAll:      true,
+			expectedStart: -1,
+			expectedEnd:   4,
+			expectedFound: false,
+			description:   "Null bytes only should return not found even in catch-all",
+		},
+		{
+			name:          "partial scan - start in middle",
+			data:          []byte{'H', 'e', 'l', 'l', 'o', 0x00, 'W', 'o', 'r', 'l', 'd', 0x00},
+			startPos:      3,
+			endPos:        12,
+			catchAll:      false,
+			expectedStart: 6,
+			expectedEnd:   11,
+			expectedFound: true,
+			description:   "Partial scan should find next valid string",
+		},
+		{
+			name:          "realistic game data scenario",
+			data:          []byte{0x00, 0x00, 'B', 'a', 'r', 'l', 'a', 'n', 'd', ' ', 'C', '+', '+', ' ', '-', ' ', 'C', 'o', 'p', 'y', 'r', 'i', 'g', 'h', 't', ' ', '9', '9', '9', '1', ' ', 'B', 'a', 'r', 'l', 'a', 'n', 'd', ' ', 'I', 'n', 't', 'l', '.', 0x00, 0x00, 0x00},
+			startPos:      0,
+			endPos:        47,
+			catchAll:      false,
+			expectedStart: 2,
+			expectedEnd:   44,
+			expectedFound: true,
+			description:   "Realistic Barland copyright string scenario",
+		},
+		{
+			name:          "edge case - start at end",
+			data:          []byte{'H', 'e', 'l', 'l', 'o', 0x00},
+			startPos:      6,
+			endPos:        6,
+			catchAll:      false,
+			expectedStart: -1,
+			expectedEnd:   6,
+			expectedFound: false,
+			description:   "Starting at end should return not found",
+		},
+		{
+			name:          "edge case - start past end",
+			data:          []byte{'H', 'e', 'l', 'l', 'o', 0x00},
+			startPos:      10,
+			endPos:        6,
+			catchAll:      false,
+			expectedStart: -1,
+			expectedEnd:   6,
+			expectedFound: false,
+			description:   "Starting past end should return not found",
+		},
+		{
+			name:          "consecutive null terminators",
+			data:          []byte{'H', 'e', 'l', 'l', 'o', 0x00, 0x00, 'W', 'o', 'r', 'l', 'd', 0x00},
+			startPos:      0,
+			endPos:        13,
+			catchAll:      false,
+			expectedStart: 0,
+			expectedEnd:   5,
+			expectedFound: true,
+			description:   "Should handle consecutive null terminators correctly",
+		},
+		{
+			name:          "string without null terminator",
+			data:          []byte{'H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd'},
+			startPos:      0,
+			endPos:        11,
+			catchAll:      false,
+			expectedStart: 0,
+			expectedEnd:   11,
+			expectedFound: true,
+			description:   "Should handle string without null terminator",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resultString, resultNewPos, resultFound := FindNextValidString(tt.data, tt.startPos, tt.endPos, false)
+			resultStart, resultEnd, resultFound := FindNextValidString(tt.data, tt.startPos, tt.endPos, tt.catchAll)
 
-			if resultString != tt.expectedString {
-				t.Errorf("FindNextValidString() string = %v, want %v", resultString, tt.expectedString)
+			if resultStart != tt.expectedStart {
+				t.Errorf("FindNextValidString() start = %v, want %v (%s)", resultStart, tt.expectedStart, tt.description)
 			}
-			if resultNewPos != tt.expectedNewPos {
-				t.Errorf("FindNextValidString() newPos = %v, want %v", resultNewPos, tt.expectedNewPos)
+			if resultEnd != tt.expectedEnd {
+				t.Errorf("FindNextValidString() end = %v, want %v (%s)", resultEnd, tt.expectedEnd, tt.description)
 			}
 			if resultFound != tt.expectedFound {
-				t.Errorf("FindNextValidString() found = %v, want %v", resultFound, tt.expectedFound)
+				t.Errorf("FindNextValidString() found = %v, want %v (%s)", resultFound, tt.expectedFound, tt.description)
+			}
+
+			// Additional verification: if found, verify the string content
+			if resultFound && resultStart >= 0 && resultEnd > resultStart {
+				actualString := string(tt.data[resultStart:resultEnd])
+				if tt.catchAll {
+					// In catch-all mode, any non-empty string is acceptable
+					if len(actualString) == 0 {
+						t.Errorf("Found empty string in catch-all mode (%s)", tt.description)
+					}
+				} else {
+					// In conservative mode, verify it starts with acceptable character
+					if len(actualString) > 0 && !IsAcceptableStringStart(tt.data[resultStart]) {
+						t.Errorf("String doesn't start with acceptable character: %q (%s)", actualString, tt.description)
+					}
+				}
 			}
 		})
 	}

@@ -121,9 +121,36 @@ help:
 	@echo "  test-extraction    - Test string extraction specifically"
 	@echo "  benchmark          - Run benchmarks"
 	@echo "  test-race          - Run tests with race detection"
+	@echo "  roundtrip-test     - Test complete extract-build cycle with src directory"
 	@echo "  clean              - Clean build artifacts"
 	@echo "  deps               - Download and tidy dependencies"
 	@echo "  fmt                - Format code"
 	@echo "  lint               - Run linter"
 	@echo "  release            - Create release packages"
-	@echo "  help               - Show this help" 
+	@echo "  help               - Show this help"
+
+# Round-trip test: extract from src, build, and compare with original
+.PHONY: roundtrip-test
+roundtrip-test: build
+	@echo "Starting round-trip test..."
+	@if [ ! -d "src" ]; then \
+		echo "Error: src directory not found. Please create src directory with game files."; \
+		exit 1; \
+	fi
+	@echo "Step 1: Extracting from src to temp directory..."
+	@mkdir -p temp_extract
+	@./$(BINARY_DIR)/$(EXTRACT_BINARY) -o temp_extract src
+	@echo "Step 2: Building from extracted files to temp directory..."
+	@mkdir -p temp_build
+	@./$(BINARY_DIR)/$(BUILD_BINARY) -o temp_build temp_extract
+	@echo "Step 3: Comparing final build with original src..."
+	@if diff -r src temp_build > /dev/null 2>&1; then \
+		echo "✅ SUCCESS: Round-trip test passed! Files match."; \
+	else \
+		echo "❌ FAILURE: Round-trip test failed! Files differ:"; \
+		diff -r src temp_build || true; \
+		exit 1; \
+	fi
+	@echo "Step 4: Cleaning up temporary directories..."
+	@rm -rf temp_extract temp_build
+	@echo "Round-trip test completed successfully!" 
