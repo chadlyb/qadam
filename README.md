@@ -75,6 +75,24 @@ go build -o build ./cmd/build
 
    This creates a `built` folder with the localized game files.
 
+## Testing
+
+### Round-trip Test
+
+To verify that the extraction and build process works correctly, you can run a round-trip test:
+
+```bash
+make roundtrip-test
+```
+
+This test:
+1. Extracts strings from the `src/` directory to `temp_extract/`
+2. Builds the game from the extracted files to `temp_build/`
+3. Compares the rebuilt files with the original `src/` files
+4. Cleans up the temporary directories
+
+If the test passes, it confirms that the extraction and build process preserves all data correctly.
+
 ## File Format Details
 
 ### texts.txt and resource.txt (from .FIL files)
@@ -108,6 +126,9 @@ make test-extraction
 
 # Run tests with coverage
 make test-coverage
+
+# Discussed above--assumes game is in `src/` subfolder.
+make roundtrip-test
 ```
 
 ### Code Quality
